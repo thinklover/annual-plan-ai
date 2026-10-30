@@ -151,7 +151,6 @@ export function Editor({ initial, settings, openSettings, onBack }: Props) {
             <div className="legend">
               <div><span className="dot ok" />已完成</div>
               <div><span className="dot warn" />未完成</div>
-              <div><span className="sw transcript" />逐字稿依據</div>
             </div>
           </nav>
           <main className="content">

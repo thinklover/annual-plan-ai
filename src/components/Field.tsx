@@ -12,8 +12,6 @@ export function SourceTag({ metaKey }: { metaKey: string }) {
   if (!m || m.source !== 'transcript') return null
   return (
     <span className="src-tag-wrap">
-      <span className="src-tag transcript">逐字稿依據
-      </span>
       {m.evidence && (
         <button type="button" className="link" onClick={() => setOpen(!open)}>
           {open ? '收起依據' : '依據'}
