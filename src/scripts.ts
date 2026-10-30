@@ -1,10 +1,14 @@
 import type { Phase } from './blocks'
+import { itemTarget } from './defaults'
+import type { Plan } from './types'
 
 export interface ScriptQuestion {
   id: string
   block: string
   q: string
   tip?: string
+  /** 依計畫書內容列出要逐項確認的項目，讓訪談人員照著念 */
+  items?: (plan: Plan) => string[]
 }
 
 export interface InterviewScript {
@@ -15,7 +19,25 @@ export interface InterviewScript {
   outro: string[]
 }
 
-const q = (id: string, block: string, text: string, tip?: string): ScriptQuestion => ({ id, block, q: text, tip })
+const q = (id: string, block: string, text: string, tip?: string, items?: ScriptQuestion['items']): ScriptQuestion =>
+  ({ id, block, q: text, tip, items })
+
+const monthsText = (m: number[]) => (m.length === 12 ? '每月' : m.length ? `${m.join('、')} 月` : '')
+const named = <T extends { name: string }>(rows: T[]) => rows.filter((r) => r.name.trim())
+
+const opsItems = (plan: Plan) => named(plan.operations).map((it) => {
+  const t = itemTarget(it, 'operations')
+  const when = monthsText(it.months)
+  return `${it.name}${t || when ? `（計畫${t ? ` ${t} 次` : ''}${when ? `，${when}` : ''}）` : ''}：實際辦了幾次？`
+})
+const actItems = (plan: Plan) => named(plan.activities).map((it) => {
+  const when = monthsText(it.months)
+  return `${it.name}${when ? `（${when}辦理）` : ''}：目標幾人次？實際幾人次？`
+})
+const staffItems = (plan: Plan) => plan.staffing.filter((s) => s.title.trim())
+  .map((s) => `${s.title}${s.planCount.trim() ? `（原規劃 ${s.planCount} 位）` : ''}：實際聘用幾位？`)
+const targetItems = (plan: Plan) => plan.serviceTargets.filter((t) => t.item.trim())
+  .map((t) => `${t.item}${t.target.trim() ? `（目標 ${t.target} 人次）` : ''}：全年累積幾人次？`)
 
 export const SCRIPTS: InterviewScript[] = [
   {
@@ -57,17 +79,24 @@ export const SCRIPTS: InterviewScript[] = [
     phase: 'review',
     title: '年終成果訪談講稿',
     intro: [
-      '建議受訪者：機構主任或業務負責人；時間約 30～60 分鐘；請準備年初的計畫書對照。',
+      '建議受訪者：機構主任或業務負責人；時間約 30～60 分鐘；請受訪者事先準備今年的執行紀錄（簽到表、會議紀錄、服務統計）。',
+      '題目下方會自動列出年初計畫書的項目與目標，請逐項詢問並請受訪者說出數字；先完成年初計畫的填寫，清單才會出現。',
       '開場：「今天想請您回顧今年計畫的執行情形，內容會整理成執行成果報告。」',
       '逐字稿請以「訪談員：」「受訪者：」標示說話者；請受訪者逐項說出實際數字。',
     ],
     questions: [
-      q('r01', 'resultsOps', '請依年初的營運管理計畫逐項回顧：每一項今年實際執行了幾次？', '依計畫書拾壹的項目逐項唸出來問。'),
-      q('r02', 'resultsOps', '營運管理項目中，哪些沒有達成目標？未達原因是什麼？明年怎麼改善？'),
-      q('r03', 'resultsActs', '請依年初的個案活動計畫逐項回顧：每項活動原本的目標參與人次是多少？今年實際參與人次多少？', '依計畫書拾貳的項目逐項唸出來問。'),
-      q('r04', 'resultsActs', '哪些活動沒有達成目標？未達原因是什麼？要怎麼改善？'),
-      q('r05', 'hiring', '各職稱今年實際聘用了幾位？和原本規劃的差在哪裡？', '依計畫書捌的人事編列逐一確認。'),
-      q('r06', 'targetResults', '各項服務今年累積服務了多少人次？沒達到目標的原因是什麼？明年怎麼改善？', '依計畫書拾參的服務項目逐一確認。'),
+      q('r01', 'resultsOps', '我們照年初的營運管理計畫一項一項對：每一項今年實際辦了幾次？',
+        '問的是「辦了幾次（場）」，不是參加人次；受訪者若只說月份，請追問「所以總共幾次？」', opsItems),
+      q('r02', 'resultsOps', '剛剛次數比計畫少、或沒有辦的項目，原因是什麼？明年打算怎麼調整？',
+        '有達成的項目不用問；請受訪者講具體做法，例如改月份、改方式、找替代人力。'),
+      q('r03', 'resultsActs', '接著是個案活動：每項活動年初的目標是多少人次？今年實際大約多少人次參加？',
+        '人次＝每場人數加總，例如每月 1 場、每場 30 人 → 360 人次；請受訪者說出數字，不要只說「差不多」。', actItems),
+      q('r04', 'resultsActs', '參加人次沒有達到目標、或場次被取消的活動，原因是什麼？明年要怎麼改善？',
+        '有達成的活動不用問；改善作法請問到具體調整，例如換時段、準備雨備方案。'),
+      q('r05', 'hiring', '人力的部分，各職稱今年實際聘用了幾位？', '和原規劃不同的職稱，請追問原因與目前招募情形。', staffItems),
+      q('r06', 'targetResults', '最後是服務人次：各項服務今年全年累積服務了多少人次？',
+        '請以全年累積的實際數字回答；年中才開辦的服務請說明從幾月開始。', targetItems),
+      q('r07', 'targetResults', '沒有達到目標的服務項目，原因是什麼？明年打算怎麼改善？', '有達成的項目不用問。'),
     ],
     outro: ['結尾：「謝謝您，成果報告整理好後會再請您確認。」'],
   },

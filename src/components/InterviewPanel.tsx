@@ -61,6 +61,7 @@ export function InterviewPanel({ onFillAll, fillingAll }: Props) {
           <ol className="questions">
             {script.questions.map((q) => {
               const b = blockById(q.block)
+              const items = q.items?.(plan) ?? []
               return (
                 <li key={q.id} className={plan.scriptChecks[q.id] ? 'asked' : ''}>
                   <label>
@@ -72,6 +73,9 @@ export function InterviewPanel({ onFillAll, fillingAll }: Props) {
                       {q.tip && <span className="q-tip">提示：{q.tip}</span>}
                     </span>
                   </label>
+                  {items.length > 0 && (
+                    <ul className="q-items">{items.map((t) => <li key={t}>{t}</li>)}</ul>
+                  )}
                 </li>
               )
             })}

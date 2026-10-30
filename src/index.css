@@ -214,3 +214,32 @@ table.cal tr.unlinked { background: var(--warn-soft); }
 .model-list { display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow: auto; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
 .model-list button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 2px 8px; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
 .model-list button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+
+/* 計畫書預覽 */
+.preview-bg { position: fixed; inset: 0; background: rgba(20, 30, 30, 0.45); z-index: 60; display: flex; justify-content: center; padding: 24px 12px; }
+.preview { background: #f3f4f2; border-radius: 14px; width: min(900px, 100%); display: flex; flex-direction: column; overflow: hidden; }
+.preview-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 18px; background: #fff; border-bottom: 1px solid #e3e6e3; }
+.preview-head .row { display: flex; gap: 8px; }
+.paper { overflow-y: auto; background: #fff; margin: 16px; padding: 40px 48px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  font-family: 'Times New Roman', '標楷體', 'DFKai-SB', 'BiauKai', serif; font-size: 15px; line-height: 1.7; color: #111; }
+.paper .cover { text-align: center; padding: 24px 0 32px; border: none; border-radius: 0; border-bottom: 1px solid #ddd; background: none; margin-bottom: 8px; }
+.paper .cover .org { font-size: 20px; font-weight: bold; }
+.paper .cover h2 { font-size: 26px; margin: 6px 0; }
+.paper h3 { font-size: 17px; margin: 26px 0 8px; }
+.paper h4 { font-size: 15px; margin: 12px 0 4px; }
+.paper p { margin: 2px 0 2px 2em; white-space: pre-wrap; }
+.paper table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 14px; }
+.paper th, .paper td { border: 1px solid #333; padding: 4px 6px; vertical-align: top; white-space: pre-wrap; text-align: left; }
+.paper th { background: #f2f2f2; }
+.paper .empty { color: #999; }
+@media print {
+  body:has(.preview-bg) > #root { display: none; }
+  .preview-bg { position: static; background: none; padding: 0; }
+  .preview { background: none; width: auto; overflow: visible; }
+  .preview-head { display: none; }
+  .paper { margin: 0; padding: 0; box-shadow: none; overflow: visible; }
+  .paper .cover { padding-top: 30vh; height: 100vh; border: none; break-after: page; }
+  .paper tr { break-inside: avoid; }
+}
+.q-items { margin: 4px 0 2px 2.2em; padding-left: 1.1em; font-size: 13px; color: #34514b; list-style: '□ '; }
+.q-items li { padding: 1px 0; }

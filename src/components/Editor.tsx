@@ -8,6 +8,7 @@ import type { Plan, Settings } from '../types'
 import { download, pool } from '../util'
 import { BlockCard } from './BlockCard'
 import { InterviewPanel } from './InterviewPanel'
+import { PreviewModal } from './PreviewModal'
 
 interface Props {
   initial: Plan
@@ -20,6 +21,7 @@ export function Editor({ initial, settings, openSettings, onBack }: Props) {
   const [plan, setPlan] = useState(initial)
   const [aiStatus, setAiStatus] = useState<Record<string, AiStatus>>({})
   const [fillingAll, setFillingAll] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [savedPlan, setSavedPlan] = useState(initial)
   const saved = savedPlan === plan
   const planRef = useRef(plan)
@@ -96,8 +98,8 @@ export function Editor({ initial, settings, openSettings, onBack }: Props) {
 
   const title = plan.basic.title.trim() || makeTitle(plan)
   const ctx = useMemo<EditorCtx>(
-    () => ({ plan, locked, settings, update, aiStatus, runAi, openSettings }),
-    [plan, locked, settings, update, aiStatus, runAi, openSettings],
+    () => ({ plan, locked, settings, update, aiStatus, openSettings }),
+    [plan, locked, settings, update, aiStatus, openSettings],
   )
 
   return (
@@ -121,6 +123,7 @@ export function Editor({ initial, settings, openSettings, onBack }: Props) {
               onClick={() => download(`${title}.json`, new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' }))}>
               匯出 JSON
             </button>
+            <button type="button" className="btn ghost small" onClick={() => setPreviewing(true)}>預覽計畫書</button>
             {locked ? (
               <>
                 <button type="button" className="btn ghost small" onClick={unlock}>解除鎖定</button>
@@ -131,6 +134,7 @@ export function Editor({ initial, settings, openSettings, onBack }: Props) {
             )}
           </div>
         </header>
+        {previewing && <PreviewModal plan={plan} onClose={() => setPreviewing(false)} />}
 
         <div className="layout">
           <nav className="toc">

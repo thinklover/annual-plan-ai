@@ -10,7 +10,6 @@ export interface EditorCtx {
   /** 修改計畫書；傳入 metaKey 表示人工修改，該欄位的 AI 標記會清除 */
   update: (fn: (d: Plan) => void, metaKey?: string) => void
   aiStatus: Record<string, AiStatus>
-  runAi: (blockId: string) => Promise<void>
   openSettings: () => void
 }
 
