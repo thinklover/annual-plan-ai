@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { ROW_FACTORY } from '../defaults'
 import { useEditor } from '../editor'
 import { getPath, setPath } from '../util'
-import { fieldClass } from '../fieldClass'
 import { SourceTag } from './Field'
 
 export interface TCol {
@@ -15,6 +14,8 @@ export interface TCol {
   width?: string
   /** 計算欄位：不存資料，只顯示 */
   render?: (row: any) => ReactNode
+  /** 輸入框提示文字（可依列計算，例如預設目標值） */
+  placeholder?: (row: any) => string
 }
 
 interface Props {
@@ -88,6 +89,7 @@ export function TableEditor({ path, metaKey, cols, title, fixedRows, sortable, a
         ) : (
           <input
             value={v ?? ''}
+            placeholder={c.placeholder?.(row)}
             inputMode={c.type === 'number' ? 'numeric' : undefined}
             disabled={dis}
             onChange={(e) => set(e.target.value)}
@@ -97,7 +99,7 @@ export function TableEditor({ path, metaKey, cols, title, fixedRows, sortable, a
   }
 
   return (
-    <div className={fieldClass(metaKey, plan.meta)}>
+    <div className="field">
       <div className="field-head">
         {title && <label>{title}</label>}
         <SourceTag metaKey={metaKey} />

@@ -2,10 +2,8 @@
 import type { AiField, BlockDef } from './blocks'
 import { ROW_FACTORY } from './defaults'
 import { generate, parseJson } from './gemini'
-import type { Plan, Settings, Source } from './types'
+import type { Plan, Settings } from './types'
 import { getPath, isBlank, setPath } from './util'
-
-export type FillMode = 'transcript' | 'guess'
 
 interface AiResult {
   values: Record<string, unknown>
@@ -30,7 +28,7 @@ function describe(f: AiField, plan: Plan): string {
     case 'table':
     case 'merge': {
       const cols = f.cols!
-        .map((c) => `"${c.key}"（${c.label}${c.type === 'months' ? '，1～12 的整數陣列' : '，字串'}）`)
+        .map((c) => `"${c.key}"（${c.label}${c.type === 'months' ? '，1～12 的整數陣列' : c.type === 'number' ? '，只填阿拉伯數字，不加逗號與單位' : c.type === 'textarea' ? '，字串，改寫成正式書面語' : '，字串'}）`)
         .join('、')
       let s = `"${f.key}"：${f.label}。物件陣列，每個物件的欄位：${cols}。`
       if (f.kind === 'merge') {
@@ -43,16 +41,10 @@ function describe(f: AiField, plan: Plan): string {
   }
 }
 
-function planContext(plan: Plan) {
-  const { meta: _m, transcripts: _t, scriptChecks: _s, ...rest } = plan
-  void _m; void _t; void _s
-  return JSON.stringify(rest).slice(0, 12000)
-}
-
 export async function runBlockAi(
-  settings: Settings, plan: Plan, block: BlockDef, mode: FillMode, transcript: string,
+  settings: Settings, plan: Plan, block: BlockDef, transcript: string,
 ): Promise<AiResult> {
-  const fields = mode === 'guess' ? block.fields.filter((f) => isFieldBlank(plan, f)) : block.fields
+  const fields = block.fields
   if (!fields.length) return { values: {} }
   const year = plan.basic.planYear || '（未定）'
   const header = [
@@ -64,38 +56,22 @@ export async function runBlockAi(
     ...fields.map((f) => '- ' + describe(f, plan)),
     '',
   ]
-  const rules = mode === 'transcript'
-    ? [
-        '規則：',
-        '1. 只能根據下方逐字稿中「受訪者」實際說出的內容填寫；訪談員的提問不是答案。',
-        '2. 逐字稿沒有提到的欄位，請回傳空字串 "" 或空陣列 []，絕對不要推測或編造，尤其是人數、金額、百分比與日期。',
-        '3. 文字一律改寫為正式書面語：以「本機構」取代「我們」，刪除「大概、就是、然後、那個」等口語；數字與事實不可更動，也不可加入逐字稿沒有的內容。',
-        '4. 逐字稿中的「今年」「明年」「去年」請依計畫年度換算；若逐字稿明確說出計畫年度，以逐字稿為準。',
-        '5. 每個有填寫的欄位，在 evidence 中附上最能支持它的逐字稿原句（100 字以內）。',
-        '',
-        '回傳格式：{"values": {欄位key: 值, ...}, "evidence": {欄位key: "逐字稿原句", ...}}',
-        '',
-        '逐字稿：',
-        '"""',
-        transcript,
-        '"""',
-      ]
-    : [
-        '規則：',
-        '1. 以上欄位在逐字稿中沒有明確資料，請參考逐字稿、計畫書其他已填內容，以及一般日間照顧機構的做法，合理推測填寫。',
-        '2. 數字請保守估計，並與計畫書其他內容一致。',
-        '3. 在 evidence 中用一句話說明推測依據。',
-        '',
-        '回傳格式：{"values": {欄位key: 值, ...}, "evidence": {欄位key: "推測依據", ...}}',
-        '',
-        '計畫書目前內容（JSON）：',
-        planContext(plan),
-        '',
-        '逐字稿：',
-        '"""',
-        transcript || '（無）',
-        '"""',
-      ]
+  const rules = [
+    '規則：',
+    '1. 只能根據下方逐字稿中「受訪者」實際說出的內容填寫；訪談員的提問不是答案。',
+    '2. 逐字稿沒有提到的欄位，請回傳空字串 "" 或空陣列 []，絕對不要推測或編造，尤其是人數、金額、百分比與日期。',
+    '3. 文字一律改寫為正式書面語：以「本機構」取代「我們」，刪除「大概、就是、然後、那個」等口語；數字與事實不可更動，也不可加入逐字稿沒有的內容。',
+    '4. 逐字稿中的「今年」「明年」「去年」請依計畫年度換算；若逐字稿明確說出計畫年度，以逐字稿為準。',
+    '5. 項目名稱以受訪者的說法為準：口語簡稱要補成完整的正式名稱（例如「日照」→「日間照顧服務」、「餐」→「餐飲服務」、「失能」→「失能長者」），但不要換成意思不同的詞（例如「在職訓練」不要改成「教育訓練」）。',
+    '6. 每個有填寫的欄位，在 evidence 中附上最能支持它的逐字稿原句（100 字以內）。',
+    '',
+    '回傳格式：{"values": {欄位key: 值, ...}, "evidence": {欄位key: "逐字稿原句", ...}}',
+    '',
+    '逐字稿：',
+    '"""',
+    transcript,
+    '"""',
+  ]
   const text = await generate(settings, SYSTEM, [...header, ...rules].join('\n'))
   const result = parseJson<AiResult>(text)
   if (!result || typeof result.values !== 'object') throw new Error('AI 回傳格式不正確')
@@ -108,7 +84,7 @@ function resultCols(f: AiField) {
   return f.cols!.filter((c) => c.key !== f.matchKey)
 }
 
-export function isFieldBlank(plan: Plan, f: AiField) {
+function isFieldBlank(plan: Plan, f: AiField) {
   const v = getPath(plan, f.path)
   if (f.kind === 'merge') {
     const cols = resultCols(f)
@@ -137,18 +113,17 @@ function toRows(f: AiField, v: unknown) {
     .filter((r) => !isBlank(r))
 }
 
-/** 把 AI 結果寫進計畫書；人工填寫或已確認的欄位不覆蓋。回傳新計畫書與寫入欄位數。 */
-export function applyAi(plan: Plan, block: BlockDef, result: AiResult, mode: FillMode): { plan: Plan; written: number } {
+/** 把 AI 結果直接寫進計畫書；人工填寫過的欄位不覆蓋。回傳新計畫書與寫入欄位數。 */
+export function applyAi(plan: Plan, block: BlockDef, result: AiResult): { plan: Plan; written: number } {
   const next: Plan = structuredClone(plan)
-  const source: Source = mode === 'transcript' ? 'transcript' : 'ai_guess'
   let written = 0
   for (const f of block.fields) {
     const raw = result.values[f.key]
     if (raw === undefined || isBlank(raw)) continue
     const meta = next.meta[f.key]
     const blank = isFieldBlank(next, f)
-    const replaceable = meta && (meta.source === 'default' || (meta.source !== 'manual' && !meta.confirmed))
-    const writable = blank || (mode === 'transcript' && replaceable)
+    const replaceable = meta && meta.source !== 'manual'
+    const writable = blank || replaceable
     if (!writable) continue
 
     if (f.kind === 'text') {
@@ -164,6 +139,8 @@ export function applyAi(plan: Plan, block: BlockDef, result: AiResult, mode: Fil
       setPath(next, f.path, rows)
     } else {
       const rows = getPath(next, f.path) as any[]
+      // 先前也是 AI 填的：清掉舊結果再重填，避免舊的錯誤數字殘留
+      if (!blank) for (const x of rows) for (const c of resultCols(f)) x[c.key] = ''
       const norm = (s: unknown) => String(s ?? '').replace(/\s/g, '')
       for (const r of toRows(f, raw) as any[]) {
         const hit = rows.find((x) => norm(x[f.matchKey!]) === norm(r[f.matchKey!]))
@@ -174,7 +151,7 @@ export function applyAi(plan: Plan, block: BlockDef, result: AiResult, mode: Fil
         }
       }
     }
-    next.meta[f.key] = { source, confirmed: false, evidence: result.evidence?.[f.key] }
+    next.meta[f.key] = { source: 'transcript', evidence: result.evidence?.[f.key] }
     written++
   }
   next.updatedAt = new Date().toISOString()

@@ -9,7 +9,7 @@ export interface Col {
 }
 
 export interface AiField {
-  /** meta 的 key（來源／確認狀態以此為單位） */
+  /** meta 的 key（AI 來源以此為單位） */
   key: string
   /** 資料在 Plan 中的路徑 */
   path: string
@@ -50,12 +50,24 @@ const PLAN_COLS: Col[] = [
   { key: 'months', label: '執行月份', type: 'months' },
 ]
 
-const RESULT_COLS: Col[] = [
-  { key: 'name', label: '項目名稱' },
-  { key: 'result', label: '執行成果', type: 'textarea' },
-  { key: 'participants', label: '參與人次' },
-  { key: 'rate', label: '達成率' },
-  { key: 'improvement', label: '檢討與改善', type: 'textarea' },
+const RESULT_TEXT_GUIDE =
+  '未達原因只填受訪者說明「為什麼沒做到、為什麼較少」的內容（例如「3 月才開始，所以只有…」也算原因），有達成目標的項目留空；' +
+  '改善作法可能在後面另一段一起回答（例如「明年要怎麼調整？」），請對應回各項目；' +
+  '未達原因與改善作法都要改寫成正式書面語，例如「有幾堂下雨改室內，人少一點」→「部分場次因雨改於室內辦理，參與人數較少」。'
+
+const OPS_RESULT_COLS: Col[] = [
+  { key: 'name', label: '服務內容' },
+  { key: 'actual', label: '實際執行次數', type: 'number' },
+  { key: 'reason', label: '未達原因（有達成則留空）', type: 'textarea' },
+  { key: 'improvement', label: '改善作法', type: 'textarea' },
+]
+
+const ACT_RESULT_COLS: Col[] = [
+  { key: 'name', label: '活動名稱' },
+  { key: 'target', label: '目標參與人次（逐字稿有提到才填）', type: 'number' },
+  { key: 'actual', label: '實際參與人次', type: 'number' },
+  { key: 'reason', label: '未達原因（有達成則留空）', type: 'textarea' },
+  { key: 'improvement', label: '改善作法', type: 'textarea' },
 ]
 
 export const BLOCKS: BlockDef[] = [
@@ -113,6 +125,7 @@ export const BLOCKS: BlockDef[] = [
   {
     id: 'okr', no: '伍', title: '整體目標', phase: 'plan', counted: true,
     desc: '先設定全年最重要的年度目標 O，再拆解為第一季至第四季的階段性目標。',
+    aiGuide: '每個目標都改寫成簡潔的正式目標句，刪除口語與語氣詞，例如「第一季要先選系統，然後全部的人都要受訓」→「完成數位照護系統選定，並辦理全體員工教育訓練」。',
     fields: [
       t('okr.o', '年度目標 O', '一句清楚、具方向性的目標'),
       t('okr.q1', '第一季目標'), t('okr.q2', '第二季目標'), t('okr.q3', '第三季目標'), t('okr.q4', '第四季目標'),
@@ -231,20 +244,22 @@ export const BLOCKS: BlockDef[] = [
   },
   {
     id: 'resultsOps', no: '拾柒', title: '執行成果報告（一）機構營運管理計畫', phase: 'review', counted: false,
-    desc: '年度執行後回填，不列入完成率。項目由「機構營運管理計畫」帶入。',
+    desc: '年度執行後回填，不列入完成率。項目由「機構營運管理計畫」帶入，目標值預設為執行月份數，可修改；達成率自動計算。',
     fields: [{
       key: 'results.operations', path: 'operations', label: '營運管理執行成果', kind: 'merge', matchKey: 'name',
-      cols: RESULT_COLS,
+      cols: OPS_RESULT_COLS,
     }],
+    aiGuide: '「實際執行次數」是辦理的次數或場次（例如每月開一次 → 12），不是參與人次。受訪者說出辦理的月份時，次數＝月份數（例如「6 月、12 月」→ 2、「5 月就報了」→ 1）；說「每個月都有」→ 12。' + RESULT_TEXT_GUIDE,
     missing: () => [],
   },
   {
     id: 'resultsActs', no: '拾捌', title: '執行成果報告（二）個案活動管理計畫', phase: 'review', counted: false,
-    desc: '年度執行後回填，不列入完成率。項目由「個案活動管理計畫」帶入。',
+    desc: '年度執行後回填，不列入完成率。項目由「個案活動管理計畫」帶入，請填目標參與人次；達成率自動計算。',
     fields: [{
       key: 'results.activities', path: 'activities', label: '個案活動執行成果', kind: 'merge', matchKey: 'name',
-      cols: RESULT_COLS,
+      cols: ACT_RESULT_COLS,
     }],
+    aiGuide: '「目標參與人次」與「實際參與人次」都是人次，不是場次。' + RESULT_TEXT_GUIDE,
     missing: () => [],
   },
   {
@@ -258,11 +273,15 @@ export const BLOCKS: BlockDef[] = [
   },
   {
     id: 'targetResults', no: '貳拾', title: '服務目標人數／人次成果統計', phase: 'review', counted: false,
-    desc: '服務項目與目標由「服務目標人數／人次」帶入，只需填實際人次。',
+    desc: '服務項目與年目標人次由「服務目標人數／人次」帶入，填年累積人次；達成率自動計算。',
     fields: [{
       key: 'results.serviceTargets', path: 'serviceTargets', label: '實際服務人次', kind: 'merge', matchKey: 'item',
-      cols: [{ key: 'item', label: '服務項目' }, { key: 'actual', label: '實際服務人次', type: 'number' }],
+      cols: [
+        { key: 'item', label: '服務項目' }, { key: 'actual', label: '年累積人次', type: 'number' },
+        { key: 'reason', label: '未達原因（有達成則留空）', type: 'textarea' }, { key: 'improvement', label: '改善作法', type: 'textarea' },
+      ],
     }],
+    aiGuide: RESULT_TEXT_GUIDE,
     missing: () => [],
   },
 ]
@@ -273,8 +292,4 @@ export function completion(p: Plan) {
   const counted = BLOCKS.filter((b) => b.counted)
   const done = counted.filter((b) => b.missing(p).length === 0).length
   return Math.round((done / counted.length) * 100)
-}
-
-export function unconfirmedKeys(p: Plan) {
-  return Object.entries(p.meta).filter(([, m]) => (m.source === 'transcript' || m.source === 'ai_guess') && !m.confirmed).map(([k]) => k)
 }

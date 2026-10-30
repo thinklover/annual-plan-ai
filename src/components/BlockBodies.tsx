@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 import {
-  DEFAULT_BASIS, makeTitle, newCal, newCash, newContent, newFee, newNamed, newPlanItem, newRole, newStaff, newTarget,
+  achieveRate, DEFAULT_BASIS, itemTarget, makeTitle, newCal, newCash, newContent, newFee, newNamed, newPlanItem, newRole, newStaff, newTarget,
   PERSPECTIVES, TPL_ACTIVITIES, TPL_CASH, TPL_FEES, TPL_OPERATIONS, TPL_ROLES, TPL_SERVICE_CONTENT,
   TPL_SERVICE_TARGETS, TPL_SERVICES, TPL_TARGETS, TPL_VISION,
 } from '../defaults'
 import { useEditor } from '../editor'
 import { calendarRows } from '../calendar'
-import type { Plan } from '../types'
+import type { Plan, PlanItem } from '../types'
 import { isBlank, num } from '../util'
 import { ListField, TextField } from './Field'
 import { MonthPicker, TableEditor, type TCol } from './TableEditor'
@@ -437,18 +437,22 @@ function PettyCash() {
   )
 }
 
-const RESULT_COLS: TCol[] = [
-  { key: 'name', label: '項目名稱', readOnly: true, width: '10em' },
-  { key: 'result', label: '執行成果', type: 'textarea' },
-  { key: 'participants', label: '參與人次', width: '6em' },
-  { key: 'rate', label: '達成率', width: '6em' },
-  { key: 'improvement', label: '檢討與改善', type: 'textarea' },
-]
-
 function Results({ path }: { path: 'operations' | 'activities' }) {
+  const ops = path === 'operations'
+  const cols: TCol[] = [
+    { key: 'name', label: ops ? '服務內容' : '活動名稱', readOnly: true, width: '11em' },
+    {
+      key: 'target', label: '目標值', type: 'number', width: '6em',
+      ...(ops ? { placeholder: (r: PlanItem) => itemTarget(r, path) } : {}),
+    },
+    { key: 'actual', label: ops ? '執行次數' : '參與人次', type: 'number', width: '6em' },
+    { key: 'rate', label: '達成率(%)', width: '6em', render: (r: PlanItem) => achieveRate(r.actual, itemTarget(r, path), num) },
+    { key: 'reason', label: '未達原因', type: 'textarea' },
+    { key: 'improvement', label: '改善作法', type: 'textarea' },
+  ]
   return (
-    <TableEditor path={path} metaKey={`results.${path}`} fixedRows cols={RESULT_COLS}
-      empty={`請先在「${path === 'operations' ? '機構營運管理計畫' : '個案活動管理計畫'}」建立項目。`} />
+    <TableEditor path={path} metaKey={`results.${path}`} fixedRows cols={cols}
+      empty={`請先在「${ops ? '機構營運管理計畫' : '個案活動管理計畫'}」建立項目。`} />
   )
 }
 
@@ -476,12 +480,11 @@ function TargetResults() {
     <TableEditor path="serviceTargets" metaKey="results.serviceTargets" fixedRows empty="請先在「服務目標人數／人次」建立服務項目。"
       cols={[
         { key: 'item', label: '服務項目', readOnly: true },
-        { key: 'target', label: `${y}年目標人次`, readOnly: true },
-        { key: 'actual', label: `${y}年實際人次`, type: 'number', width: '9em' },
-        {
-          key: 'rate', label: '達成率',
-          render: (r) => (num(r.target) && !isBlank(r.actual) ? `${Math.round((num(r.actual) / num(r.target)) * 100)}%` : ''),
-        },
+        { key: 'target', label: `${y}年目標人次`, readOnly: true, width: '8em' },
+        { key: 'actual', label: `${y}年累積人次`, type: 'number', width: '8em' },
+        { key: 'rate', label: '達成率(%)', width: '6em', render: (r) => achieveRate(r.actual, r.target, num) },
+        { key: 'reason', label: '未達原因', type: 'textarea' },
+        { key: 'improvement', label: '改善作法', type: 'textarea' },
       ]} />
   )
 }

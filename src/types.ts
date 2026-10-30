@@ -1,9 +1,8 @@
-/** default：系統預設值，可被 AI 覆蓋、不需確認 */
-export type Source = 'transcript' | 'ai_guess' | 'manual' | 'default'
+/** default：系統預設值，可被 AI 覆蓋 */
+export type Source = 'transcript' | 'manual' | 'default'
 
 export interface FieldMeta {
   source: Source
-  confirmed: boolean
   evidence?: string
 }
 
@@ -34,9 +33,11 @@ export interface PlanItem {
   name: string
   desc: string
   months: number[]
-  result: string
-  participants: string
-  rate: string
+  /** 成果報告：目標值（營運預設為執行月份數） */
+  target: string
+  /** 成果報告：營運為執行次數、活動為參與人次 */
+  actual: string
+  reason: string
   improvement: string
 }
 
@@ -52,6 +53,8 @@ export interface TargetRow {
   prevCount: string
   target: string
   actual: string
+  reason: string
+  improvement: string
 }
 
 export interface FeeRow {

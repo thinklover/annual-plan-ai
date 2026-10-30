@@ -33,7 +33,12 @@ export async function generate(settings: Settings, system: string, prompt: strin
 
 export function parseJson<T>(text: string): T {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
-  return JSON.parse(cleaned) as T
+  try {
+    return JSON.parse(cleaned) as T
+  } catch {
+    // 模型偶爾輸出不合法的跳脫字元（例如 \、），把落單的反斜線補成兩個再試一次
+    return JSON.parse(cleaned.replace(/\\(?!["\\/bfnrtu])/g, '\\\\')) as T
+  }
 }
 
 export async function listModels(apiKey: string): Promise<string[]> {

@@ -1,5 +1,5 @@
 // 資料存取層：第一版存在瀏覽器 localStorage，日後改接 MySQL 只需替換本檔。
-import { emptyPlan } from './defaults'
+import { emptyPlan, ROW_FACTORY } from './defaults'
 import type { Plan, Settings } from './types'
 
 const PLANS_KEY = 'annual-plan-ai:plans'
@@ -21,9 +21,15 @@ function writeAll(all: Record<string, Plan>) {
 /** 補齊舊版或匯入資料缺少的欄位 */
 function normalize(p: Partial<Plan>): Plan {
   const base = emptyPlan()
+  const rows: Record<string, unknown> = {}
+  for (const [key, make] of Object.entries(ROW_FACTORY)) {
+    const v = (p as Record<string, unknown>)[key]
+    if (Array.isArray(v)) rows[key] = v.map((r) => ({ ...make(), ...r }))
+  }
   return {
     ...base,
     ...p,
+    ...rows,
     basic: { ...base.basic, ...p.basic },
     vision: { ...base.vision, ...p.vision },
     so: { ...base.so, ...p.so },

@@ -3,7 +3,7 @@ import {
 } from 'docx'
 import { BLOCKS, blockById } from './blocks'
 import { calendarRows } from './calendar'
-import { makeTitle, PERSPECTIVES } from './defaults'
+import { achieveRate, itemTarget, makeTitle, PERSPECTIVES } from './defaults'
 import type { InterviewScript } from './scripts'
 import type { Plan, PlanItem } from './types'
 import { download, num } from './util'
@@ -122,15 +122,19 @@ function sectionContent(plan: Plan, id: string): (Paragraph | Table)[] {
     }
     case 'resultsOps':
     case 'resultsActs': {
-      const items: PlanItem[] = id === 'resultsOps' ? plan.operations : plan.activities
-      return [table(['項目', '執行成果', '參與人次', '達成率', '檢討與改善'],
-        items.map((it) => [it.name, it.result, it.participants, it.rate, it.improvement]))]
+      const kind = id === 'resultsOps' ? 'operations' : 'activities'
+      const items: PlanItem[] = plan[kind]
+      return [table([kind === 'operations' ? '服務內容' : '活動名稱', '目標值', kind === 'operations' ? '執行次數' : '參與人次', '達成率(%)', '未達原因', '改善作法'],
+        items.map((it) => {
+          const target = itemTarget(it, kind)
+          return [it.name, target, it.actual, achieveRate(it.actual, target, num), it.reason, it.improvement]
+        }))]
     }
     case 'hiring':
       return [table(['職稱', `${y}年原先擬聘用人數`, `${y}年實際聘用人數`], plan.staffing.map((s) => [s.title, s.planCount, s.actualCount]))]
     case 'targetResults':
-      return [table(['服務項目', `${y}年目標人次`, `${y}年實際人次`, '達成率'], plan.serviceTargets.map((t) => [
-        t.item, t.target, t.actual, num(t.target) && t.actual.trim() ? `${Math.round((num(t.actual) / num(t.target)) * 100)}%` : '',
+      return [table(['服務項目', `${y}年目標人次`, `${y}年累積人次`, '達成率(%)', '未達原因', '改善作法'], plan.serviceTargets.map((t) => [
+        t.item, t.target, t.actual, achieveRate(t.actual, t.target, num), t.reason, t.improvement,
       ]))]
     default:
       return []

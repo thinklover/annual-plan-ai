@@ -1,31 +1,22 @@
 import { useState } from 'react'
 import { polishText, type PolishMode } from '../ai'
 import { useEditor } from '../editor'
-import { fieldClass } from '../fieldClass'
 import { getPath, setPath } from '../util'
 
-const SOURCE_LABEL = { transcript: '逐字稿依據', ai_guess: 'AI 推測' } as const
 
-/** 顯示 AI 來源、依據與確認按鈕 */
+/** 顯示 AI 來源與依據 */
 export function SourceTag({ metaKey }: { metaKey: string }) {
-  const { plan, confirm, locked } = useEditor()
+  const { plan } = useEditor()
   const [open, setOpen] = useState(false)
   const m = plan.meta[metaKey]
-  if (!m || (m.source !== 'transcript' && m.source !== 'ai_guess')) return null
+  if (!m || m.source !== 'transcript') return null
   return (
     <span className="src-tag-wrap">
-      <span className={`src-tag ${m.source} ${m.confirmed ? 'confirmed' : ''}`}>
-        {m.confirmed ? '✓ ' : ''}
-        {SOURCE_LABEL[m.source]}
+      <span className="src-tag transcript">逐字稿依據
       </span>
       {m.evidence && (
         <button type="button" className="link" onClick={() => setOpen(!open)}>
           {open ? '收起依據' : '依據'}
-        </button>
-      )}
-      {!m.confirmed && !locked && (
-        <button type="button" className="btn tiny ok" onClick={() => confirm([metaKey])}>
-          確認
         </button>
       )}
       {open && m.evidence && <span className="evidence">「{m.evidence}」</span>}
@@ -48,7 +39,7 @@ export function TextField({ path, label, multiline, placeholder, required, help,
   const value = (getPath(plan, path) as string) ?? ''
   const set = (v: string) => update((d) => setPath(d, path, v), path)
   return (
-    <div className={fieldClass(path, plan.meta)}>
+    <div className="field">
       <div className="field-head">
         <label>
           {label}
@@ -142,7 +133,7 @@ export function ListField({ path, label, help }: { path: string; label: string; 
       setPath(d, path, l)
     }, path)
   return (
-    <div className={fieldClass(path, plan.meta)}>
+    <div className="field">
       <div className="field-head">
         <label>{label}</label>
         <SourceTag metaKey={path} />

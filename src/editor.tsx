@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react'
-import type { FillMode } from './ai'
 import type { Plan, Settings } from './types'
 
 export type AiStatus = { state: 'idle' } | { state: 'running' } | { state: 'done'; msg: string } | { state: 'error'; msg: string }
@@ -10,9 +9,8 @@ export interface EditorCtx {
   settings: Settings
   /** 修改計畫書；傳入 metaKey 表示人工修改，該欄位的 AI 標記會清除 */
   update: (fn: (d: Plan) => void, metaKey?: string) => void
-  confirm: (keys: string[]) => void
   aiStatus: Record<string, AiStatus>
-  runAi: (blockId: string, mode: FillMode) => Promise<void>
+  runAi: (blockId: string) => Promise<void>
   openSettings: () => void
 }
 

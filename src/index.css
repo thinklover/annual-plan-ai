@@ -57,7 +57,6 @@ input:disabled, textarea:disabled, select:disabled { background: #f7f8f8; color:
 .btn.ghost { background: #fff; color: var(--text); border-color: var(--line); }
 .btn.ghost:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
 .btn.ok { background: var(--ok); }
-.btn.guess { background: #fff; color: var(--guess); border-color: var(--guess); }
 .btn.danger { color: var(--danger); }
 .btn.danger.ghost:hover { border-color: var(--danger); color: var(--danger); }
 .btn.small { padding: 4px 11px; font-size: 14px; }
@@ -89,8 +88,7 @@ input:disabled, textarea:disabled, select:disabled { background: #f7f8f8; color:
 .dot.warn { background: var(--warn); }
 .dot.info { background: var(--info); }
 .sw { display: inline-block; width: 14px; height: 10px; margin-right: 7px; border-radius: 2px; }
-.sw.transcript { background: var(--info-soft); border-left: 3px solid var(--info); }
-.sw.guess { background: var(--guess-soft); border-left: 3px solid var(--guess); }
+.sw.transcript { background: var(--info); }
 
 /* ---------- 首頁 ---------- */
 .home { max-width: 1000px; margin: 0 auto; padding: 32px 20px; }
@@ -160,16 +158,12 @@ input:disabled, textarea:disabled, select:disabled { background: #f7f8f8; color:
 
 /* ---------- 欄位 ---------- */
 .field { display: grid; gap: 4px; padding: 6px 8px; margin: 0 -8px; border-radius: 8px; border-left: 3px solid transparent; }
-.field.src-transcript { background: var(--info-soft); border-left-color: var(--info); }
-.field.src-guess { background: var(--guess-soft); border-left-color: var(--guess); }
 .field-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
 .field-head label { font-weight: 600; font-size: 14px; }
 .req { color: var(--danger); margin-left: 2px; }
 .src-tag-wrap { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .src-tag { font-size: 12px; padding: 0 7px; border-radius: 4px; }
 .src-tag.transcript { background: var(--info); color: #fff; }
-.src-tag.ai_guess { background: var(--guess); color: #fff; }
-.src-tag.confirmed { background: #eef1f0; color: var(--muted); }
 .evidence { flex-basis: 100%; font-size: 13px; color: #44545a; background: #fff; border: 1px dashed var(--line); border-radius: 6px; padding: 4px 8px; }
 
 .polish { position: relative; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }

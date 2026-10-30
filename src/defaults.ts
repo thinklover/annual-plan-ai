@@ -17,11 +17,11 @@ export const newStaff = (p: Partial<StaffRow> = {}): StaffRow => ({
   id: uid(), title: '', prevCount: '', planCount: '', duty: '', actualCount: '', ...p,
 })
 export const newPlanItem = (p: Partial<PlanItem> = {}): PlanItem => ({
-  id: uid(), name: '', desc: '', months: [], result: '', participants: '', rate: '', improvement: '', ...p,
+  id: uid(), name: '', desc: '', months: [], target: '', actual: '', reason: '', improvement: '', ...p,
 })
 export const newContent = (p: Partial<ContentRow> = {}): ContentRow => ({ id: uid(), item: '', content: '', ...p })
 export const newTarget = (p: Partial<TargetRow> = {}): TargetRow => ({
-  id: uid(), item: '', prevCount: '', target: '', actual: '', ...p,
+  id: uid(), item: '', prevCount: '', target: '', actual: '', reason: '', improvement: '', ...p,
 })
 export const newFee = (p: Partial<FeeRow> = {}): FeeRow => ({ id: uid(), item: '', amount: '', unit: '', note: '', ...p })
 export const newCash = (p: Partial<CashRow> = {}): CashRow => ({ id: uid(), item: '', content: '', monthly: '', ...p })
@@ -88,10 +88,10 @@ export function emptyPlan(): Plan {
     transcripts: { plan: '', review: '' },
     scriptChecks: {},
     meta: {
-      'basic.planYear': { source: 'default', confirmed: true },
-      'basic.madeYear': { source: 'default', confirmed: true },
-      'basic.madeMonth': { source: 'default', confirmed: true },
-      'satisfaction.year': { source: 'default', confirmed: true },
+      'basic.planYear': { source: 'default' },
+      'basic.madeYear': { source: 'default' },
+      'basic.madeMonth': { source: 'default' },
+      'satisfaction.year': { source: 'default' },
     },
   }
 }
@@ -162,3 +162,15 @@ export const TPL_CASH: [string, string, string][] = [
   ['清潔用品', '清潔劑、消毒用品等', '2000'],
   ['郵電雜支', '郵資、快遞及其他小額支出', '500'],
 ]
+
+/** 成果報告的目標值：營運項目未填時以執行月份數為預設 */
+export function itemTarget(item: PlanItem, kind: 'operations' | 'activities') {
+  if (item.target?.trim()) return item.target
+  return kind === 'operations' && item.months.length ? String(item.months.length) : ''
+}
+
+/** 達成率：實際 ÷ 目標，四捨五入到整數 */
+export function achieveRate(actual: string, target: string, toNum: (s: string) => number) {
+  const t = toNum(target)
+  return t && actual?.trim() ? `${Math.round((toNum(actual) / t) * 100)}%` : ''
+}

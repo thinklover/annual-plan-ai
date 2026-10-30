@@ -20,9 +20,10 @@ export function isBlank(v: unknown): boolean {
   return false
 }
 
+/** 取出字串中的第一個數字，容許「9,050 人次」「1,200元」這類寫法 */
 export const num = (s: string) => {
-  const n = Number(String(s).replace(/[,，\s]/g, ''))
-  return Number.isFinite(n) ? n : 0
+  const m = String(s ?? '').replace(/[,，]/g, '').match(/-?\d+(\.\d+)?/)
+  return m ? Number(m[0]) : 0
 }
 
 export function download(filename: string, blob: Blob) {
