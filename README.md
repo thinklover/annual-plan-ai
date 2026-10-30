@@ -22,6 +22,6 @@ npm run dev
 
 ## 部署到 GitHub Pages
 
-1. 在 GitHub 建立公開 repo `annual-plan-ai`，把程式推到 `main`。
-2. repo 的 Settings → Pages → Source 選「GitHub Actions」。
-3. 之後每次推到 `main` 會自動建置並發佈到 `https://<帳號>.github.io/annual-plan-ai/`。
+1. 把程式推到 `main`，GitHub Actions 會自動建置，並把結果推到 `gh-pages` 分支。
+2. repo 的 Settings → Pages → Source 選「Deploy from a branch」，分支選 `gh-pages`、資料夾選 `/ (root)`。
+3. 之後每次推到 `main` 會自動更新 `https://<帳號>.github.io/annual-plan-ai/`。
