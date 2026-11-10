@@ -2,11 +2,11 @@ import { byDate, fmtDate, inYear, todayIso, yearLabel } from '../fmt'
 import { exportDocx, type DocBlock } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
 import { deletePhoto, getPhotos } from '../photos'
-import { uid, useStore } from '../store'
+import { uid, usePruneDrafts, useStore } from '../store'
 import type { EvalData, Meeting, MeetingKind, Topic } from '../types'
 import {
   Area, Card, DateIn, confirmDelete, EditActions, Field, move, NameInput, NamesInput, NotFound, orgName, Page, PhotoField,
-  RecordTable, Text, useNames, useYear, YearSelect,
+  RecordTable, Text, useNames, useStaffNames, useYear, YearSelect,
 } from '../ui'
 
 const META: Record<MeetingKind, { no: string; title: string; record: string }> = {
@@ -21,11 +21,21 @@ const emptyTopic = (): Topic => ({ id: uid(), title: '', discussion: '', resolut
 
 function newMeeting(d: EvalData, kind: MeetingKind, year: number): Meeting {
   const date = inYear(todayIso(), year) ? todayIso() : `${year}-01-01`
-  const prev = d.meetings.filter((m) => m.kind === kind && inYear(m.date, year) && m.date <= date).sort(byDate).at(-1)
+  // 上一場（可跨年度）：帶入追蹤事項，以及通常不變的地點、主席、紀錄人
+  const prev = previousMeeting(d, kind, date, '')
   return {
-    id: uid(), kind, date, time: '', place: '', chair: '', recorder: '', attendees: [],
-    target: kind === 'group' ? '居服員' : '', prevFollow: prev?.nextFollow ?? '', topics: [emptyTopic()], nextFollow: '', photos: [],
+    id: uid(), kind, date, time: '', place: prev?.place ?? '', chair: prev?.chair ?? '', recorder: prev?.recorder ?? '', attendees: [],
+    target: kind === 'group' ? prev?.target || '居服員' : '', prevFollow: prev?.nextFollow ?? '', topics: [emptyTopic()], nextFollow: '', photos: [],
+    draft: true,
   }
+}
+
+/** 同類會議中，日期在指定日期（含）之前最近的一場，不限年度 */
+function previousMeeting(d: EvalData, kind: MeetingKind, date: string, selfId: string) {
+  return d.meetings
+    .filter((m) => m.kind === kind && m.id !== selfId && !m.draft && m.date && m.date <= date)
+    .sort(byDate)
+    .at(-1)
 }
 
 export function MeetingList({ kind }: { kind: MeetingKind }) {
@@ -34,6 +44,7 @@ export function MeetingList({ kind }: { kind: MeetingKind }) {
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
   const meta = META[kind]
+  usePruneDrafts()
   const list = data.meetings.filter((m) => m.kind === kind && inYear(m.date, year)).sort(byDate)
   const base = `#/meetings/${kind}`
 
@@ -118,6 +129,7 @@ export async function meetingDoc(d: EvalData, m: Meeting): Promise<DocBlock[]> {
 export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
   const { data, update } = useStore()
   const names = useNames()
+  const staffNames = useStaffNames()
   const m = data.meetings.find((x) => x.id === id)
   const back = `#/meetings/${kind}`
   if (!m) return <NotFound back={back} />
@@ -125,8 +137,16 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
   const set = (fn: (x: Meeting) => void) =>
     update((d) => {
       const x = d.meetings.find((y) => y.id === id)
-      if (x) fn(x)
+      if (!x) return
+      fn(x)
+      delete x.draft
     })
+  const prev = previousMeeting(data, kind, m.date, id)
+  const pullPrev = () => {
+    if (!prev) return
+    if (m.prevFollow.trim() && !window.confirm('會以上一場的「下次追蹤事項」取代目前內容，確定嗎？')) return
+    set((x) => { x.prevFollow = prev.nextFollow })
+  }
   const setTopic = (i: number, k: keyof Omit<Topic, 'id'>, v: string) => set((x) => { x.topics[i][k] = v })
 
   const onWord = async () => exportDocx(`${meta.record}_${fmtDate(m.date, data.org.yearFormat)}`, await meetingDoc(data, m))
@@ -148,11 +168,18 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
           <Field label="紀錄人"><NameInput names={names} value={m.recorder} onChange={(v) => set((x) => { x.recorder = v })} /></Field>
           {kind === 'group' && <Field label="對象"><Text value={m.target} onChange={(v) => set((x) => { x.target = v })} /></Field>}
         </div>
-        <Field label="參與人員"><NamesInput names={names} value={m.attendees} onChange={(v) => set((x) => { x.attendees = v })} /></Field>
+        <Field label="參與人員"><NamesInput names={names} staff={staffNames} value={m.attendees} onChange={(v) => set((x) => { x.attendees = v })} /></Field>
       </Card>
 
-      <Card title="上次追蹤事項">
-        <Area value={m.prevFollow} onChange={(v) => set((x) => { x.prevFollow = v })} placeholder="新增會議時已自動帶入上一場的「下次追蹤事項」" />
+      <Card
+        title="上次追蹤事項"
+        actions={prev && prev.nextFollow !== m.prevFollow && (
+          <button type="button" className="btn small ghost" onClick={pullPrev}>
+            重新帶入上一場（{fmtDate(prev.date, data.org.yearFormat)}）的追蹤事項
+          </button>
+        )}
+      >
+        <Area value={m.prevFollow} onChange={(v) => set((x) => { x.prevFollow = v })} placeholder={prev ? '上一場沒有填「下次追蹤事項」' : '沒有更早的會議可以帶入'} />
       </Card>
 
       <Card title="議題、討論與決議" actions={<button type="button" className="btn small" onClick={() => set((x) => { x.topics.push(emptyTopic()) })}>＋ 新增議題</button>}>

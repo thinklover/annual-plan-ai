@@ -4,7 +4,7 @@ import { getSettings } from '../../storage'
 import { byDate, capacityRows, fmtDate, fmtNum, inYear, pct, sumAvg, todayIso, yearLabel } from '../fmt'
 import { exportDocx, type DocBlock } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
-import { emptyReport, optionsOf, uid, useStore } from '../store'
+import { emptyReport, optionsOf, uid, usePruneDrafts, useStore } from '../store'
 import type { EvalData, Incident, IncidentKind, IncidentReport } from '../types'
 import {
   Area, Card, DateIn, confirmDelete, EditActions, Field, NotFound, OptionSelect, orgName, Page, RecordTable, Text, useYear, YearSelect,
@@ -48,13 +48,14 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
   const meta = META[kind]
+  usePruneDrafts()
   const list = listOf(data, kind, year)
   const base = `#/incidents/${kind}`
 
   const add = () => {
     const x: Incident = {
       id: uid(), kind, date: inYear(todayIso(), year) ? todayIso() : `${year}-01-01`, type: '', reporter: '',
-      description: '', response: '', followup: '', supervisorNote: '', managerNote: '',
+      description: '', response: '', followup: '', supervisorNote: '', managerNote: '', draft: true,
     }
     update((d) => { d.incidents.push(x) })
     location.hash = `${base}/${x.id}`
@@ -104,7 +105,9 @@ export function IncidentEdit({ kind, id }: { kind: IncidentKind; id: string }) {
   const set = (fn: (y: Incident) => void) =>
     update((d) => {
       const y = d.incidents.find((z) => z.id === id)
-      if (y) fn(y)
+      if (!y) return
+      fn(y)
+      delete y.draft
     })
 
   const onWord = () =>
@@ -151,6 +154,9 @@ function typeStats(d: EvalData, kind: IncidentKind, list: Incident[]) {
   }
 }
 
+/** 第二章標題，依各自的參考報告 */
+const CAUSE_TITLE: Record<IncidentKind, string> = { accident: '綜合原因分析', complaint: '事件分析原因' }
+
 function reportDoc(d: EvalData, kind: IncidentKind, year: number, rep: IncidentReport): DocBlock[] {
   const f = d.org.yearFormat
   const list = listOf(d, kind, year)
@@ -170,11 +176,21 @@ function reportDoc(d: EvalData, kind: IncidentKind, year: number, rep: IncidentR
           rows: st.rows.map((r, i) => [String(i + 1), r.type, String(r.count), r.pct]),
           foot: [['', '合計', String(st.total), st.total ? '100%' : '0%']],
         }
+  // 整年沒有事件：不印全 0 的統計表，直接寫明無事件
+  if (!st.total) {
+    const hasCause = !!rep.cause.trim()
+    return [
+      { t: 'title', sub: orgName(d), text: title },
+      { t: 'p', text: `${yearLabel(year, f)}年度未發生${META[kind].title}。` },
+      ...(hasCause ? ([{ t: 'h', text: `一、${CAUSE_TITLE[kind]}` }, { t: 'p', text: rep.cause }] as DocBlock[]) : []),
+      ...(rep.improvement.trim() ? ([{ t: 'h', text: `${hasCause ? '二' : '一'}、改善措施` }, { t: 'p', text: rep.improvement }] as DocBlock[]) : []),
+    ]
+  }
   return [
     { t: 'title', sub: orgName(d), text: title },
     { t: 'h', text: kind === 'accident' ? '一、事件類別分類統計與佔比' : `一、事件類型件數統計（共計發生 ${st.total} 件）` },
     table,
-    { t: 'h', text: '二、綜合原因分析' },
+    { t: 'h', text: `二、${CAUSE_TITLE[kind]}` },
     { t: 'p', text: rep.cause },
     { t: 'h', text: '三、改善措施' },
     { t: 'p', text: rep.improvement },
@@ -187,7 +203,7 @@ function aiPrompt(d: EvalData, kind: IncidentKind, year: number) {
   const st = typeStats(d, kind, list)
   const cap = capacityRows(d, year)
   const avg = (k: 'cases' | 'claimants' | 'amount') => sumAvg(cap.map((r) => r[k]))
-  const last = cap.filter((r) => r.cases || r.claimants).at(-1) ?? cap[11]
+  const last = cap.filter((r) => !r.future).at(-1) ?? cap[0]
   const flow = (k: 'supNew' | 'supLeave' | 'cgNew' | 'cgLeave') => cap.reduce((a, r) => a + r.staff[k], 0)
   const o = d.org
   return [
@@ -265,6 +281,7 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
     >
       <Card title={kind === 'accident' ? '一、事件類別分類統計與佔比' : '一、事件類型件數統計'}>
         <p className="help">由本年度事件紀錄自動統計（共 {st.total} 件）。</p>
+        {!st.total && <div className="notice">本年度沒有事件紀錄，匯出的 Word 會寫「{yearLabel(year, f)}年度未發生{meta.title}」，不印統計表。</div>}
         <table className="grid">
           <thead>
             <tr>
@@ -289,7 +306,7 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
       </Card>
 
       <Card
-        title="二、綜合原因分析／三、改善措施"
+        title={`二、${CAUSE_TITLE[kind]}／三、改善措施`}
         actions={<button type="button" className="btn small" disabled={busy} onClick={runAi}>{busy ? 'AI 分析中…' : 'AI 建議'}</button>}
       >
         <p className="help">
@@ -297,7 +314,7 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
           {!getSettings().apiKey && <b> 尚未設定 Gemini API Key，請到首頁「AI 設定」。</b>}
         </p>
         {err && <div className="err">{err}</div>}
-        <Field label="二、綜合原因分析"><Area value={rep.cause} rows={6} onChange={(v) => set((r) => { r.cause = v })} /></Field>
+        <Field label={`二、${CAUSE_TITLE[kind]}`}><Area value={rep.cause} rows={6} onChange={(v) => set((r) => { r.cause = v })} /></Field>
         <Field label="三、改善措施"><Area value={rep.improvement} rows={6} onChange={(v) => set((r) => { r.improvement = v })} /></Field>
       </Card>
     </Page>

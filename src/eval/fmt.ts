@@ -71,14 +71,19 @@ export function capacityRows(d: EvalData, y: number) {
   const months: CapacityMonth[] = d.capacity[y] ?? []
   return Array.from({ length: 12 }, (_, i) => {
     const src = months[i] ?? { cases: '', claimants: '', amount: '', override: {} }
+    // 還沒到的月份不自動計算人數（留白），手動填寫仍然有效
+    const future = isFutureMonth(y, i + 1)
     const auto = autoStaffCounts(d.employees, y, i + 1)
-    const staff = Object.fromEntries(
-      Object.entries(auto).map(([k, v]) => {
-        const o = src.override?.[k as StaffCountKey]
-        return [k, o != null && o !== '' ? toNum(o) : v]
-      }),
-    ) as Record<StaffCountKey, number>
-    return { month: i + 1, cases: src.cases, claimants: src.claimants, amount: src.amount, auto, staff }
+    const staff = {} as Record<StaffCountKey, number>
+    const shown = {} as Record<StaffCountKey, string>
+    const manual = {} as Record<StaffCountKey, boolean>
+    for (const k of Object.keys(auto) as StaffCountKey[]) {
+      const o = src.override?.[k] ?? ''
+      manual[k] = o !== ''
+      staff[k] = manual[k] ? toNum(o) : future ? 0 : auto[k]
+      shown[k] = manual[k] ? String(toNum(o)) : future ? '' : String(auto[k])
+    }
+    return { month: i + 1, cases: src.cases, claimants: src.claimants, amount: src.amount, auto, staff, shown, manual, future }
   })
 }
 
@@ -94,4 +99,29 @@ export function sumAvg(values: string[]) {
 export const fmtNum = (n: number, digits = 0) =>
   n.toLocaleString('zh-TW', { maximumFractionDigits: digits, minimumFractionDigits: 0 })
 
-export const pct = (a: number, total: number) => (total ? `${((a / total) * 100).toFixed(2)}%` : '0%')
+export const round2 = (n: number) => Math.round(n * 100) / 100
+/** 佔比：最多小數 2 位，去掉多餘的 0（75%、47.37%） */
+export const pct = (a: number, total: number) => (total ? `${round2((a / total) * 100)}%` : '0%')
+
+export const isFutureMonth = (y: number, m: number) => {
+  const now = new Date()
+  return y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)
+}
+
+/** 名冊資料不完整、會影響人數統計的員工 */
+export function staffIssues(emps: Employee[], y: number) {
+  const list = emps.filter((e) => e.name && activeInYear(e, y))
+  return {
+    noGender: list.filter((e) => !e.gender).map((e) => e.name),
+    unclassified: list.filter((e) => !isSupervisor(e) && !isCaregiver(e)).map((e) => e.name),
+    noHire: emps.filter((e) => e.name && !e.hireDate).map((e) => e.name),
+  }
+}
+
+/** CPR 狀態：以 ref 日期為準，60 天內到期算「即將到期」 */
+export function cprStatus(e: Employee, ref: string): '' | 'none' | 'expired' | 'soon' | 'ok' {
+  if (!e.cprExpiry) return 'none'
+  if (e.cprExpiry < ref) return 'expired'
+  const days = (new Date(e.cprExpiry).getTime() - new Date(ref).getTime()) / 86400000
+  return days <= 60 ? 'soon' : 'ok'
+}

@@ -1,7 +1,7 @@
 import { activeInYear, byDate, fmtDate, fmtMD, inYear, isCaregiver, isSupervisor, todayIso, yearLabel } from '../fmt'
 import { exportDocx } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
-import { uid, useStore } from '../store'
+import { uid, usePruneDrafts, useStore } from '../store'
 import type { Supervision } from '../types'
 import {
   Area, Card, DateIn, confirmDelete, EditActions, Field, NameInput, NotFound, orgName, Page, RecordTable, useYear, YearSelect,
@@ -14,13 +14,22 @@ export function SupervisionList() {
   const { year } = useYear()
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
+  usePruneDrafts()
   const list = data.supervisions.filter((s) => inYear(s.date, year)).sort(byDate)
 
-  const add = () => {
-    const sup = data.employees.find((e) => isSupervisor(e) && activeInYear(e, year))
+  // 尚未個督：目前在職、今年還沒有個督紀錄的照服員
+  const done = new Set(list.map((s) => s.staff))
+  const pending = data.employees.filter(
+    (e) => e.name && isCaregiver(e) && activeInYear(e, year) && !(e.leaveDate && e.leaveDate <= todayIso()) && !done.has(e.name),
+  )
+
+  const add = (staff = '') => {
+    // 主責居督：優先帶職稱是「督導員」的人，其次才是小卡職別為居督的人（例如業務負責人）
+    const sups = data.employees.filter((e) => e.name && isSupervisor(e) && activeInYear(e, year) && !e.leaveDate)
+    const sup = sups.find((e) => /督導/.test(e.title)) ?? sups[0]
     const s: Supervision = {
-      id: uid(), date: inYear(todayIso(), year) ? todayIso() : `${year}-01-01`, staff: '', problem: '', feedback: '', plan: '',
-      supervisor: sup?.name ?? '',
+      id: uid(), date: inYear(todayIso(), year) ? todayIso() : `${year}-01-01`, staff, problem: '', feedback: '', plan: '',
+      supervisor: sup?.name ?? '', draft: true,
     }
     update((d) => { d.supervisions.push(s) })
     location.hash = `${BACK}/${s.id}`
@@ -53,9 +62,17 @@ export function SupervisionList() {
       actions={<>
         <YearSelect />
         <button type="button" className="btn ghost" onClick={exportTotal}>匯出年度總表</button>
-        <button type="button" className="btn" onClick={add}>＋ 新增個督紀錄</button>
+        <button type="button" className="btn" onClick={() => add()}>＋ 新增個督紀錄</button>
       </>}
     >
+      {pending.length > 0 && (
+        <section className="block">
+          <div className="pending">
+            <b>{yl}年度尚未個督（{pending.length} 人）：</b>
+            {pending.map((e) => <button type="button" key={e.id} title="點一下新增這位的個督紀錄" onClick={() => add(e.name)}>{e.name}</button>)}
+          </div>
+        </section>
+      )}
       <RecordTable
         items={list}
         href={(s) => `${BACK}/${s.id}`}
@@ -81,7 +98,9 @@ export function SupervisionEdit({ id }: { id: string }) {
   const set = (fn: (x: Supervision) => void) =>
     update((d) => {
       const x = d.supervisions.find((z) => z.id === id)
-      if (x) fn(x)
+      if (!x) return
+      fn(x)
+      delete x.draft
     })
 
   // 今年還沒做過個督的人排前面

@@ -1,8 +1,8 @@
-import { capacityRows, fmtNum, sumAvg, yearLabel } from '../fmt'
+import { capacityRows, fmtNum, sumAvg, toNum, yearLabel } from '../fmt'
 import { exportXlsx } from '../exportXlsx'
 import { emptyCapacity, useStore } from '../store'
 import type { CapacityMonth, EvalData, StaffCountKey } from '../types'
-import { Card, orgName, Page, useYear, YearSelect } from '../ui'
+import { Card, orgName, Page, StaffWarnings, useYear, YearSelect } from '../ui'
 
 export const STAFF_COLS: { key: StaffCountKey; label: string }[] = [
   { key: 'supM', label: '居督 男' },
@@ -14,22 +14,21 @@ export const STAFF_COLS: { key: StaffCountKey; label: string }[] = [
   { key: 'cgNew', label: '新進照服員' },
   { key: 'cgLeave', label: '離職照服員' },
 ]
+const FLOW: StaffCountKey[] = ['supNew', 'supLeave', 'cgNew', 'cgLeave']
 
-/** 1～12 月服務量＋總計、平均（年初「現況」、年終「機構現況」共用） */
+/** 1～12 月服務量＋總計、平均（年初「現況」、年終「機構現況」共用）；新進／離職只列總計 */
 export function serviceTable(d: EvalData, y: number, withStaffFlow: boolean) {
   const rows = capacityRows(d, y)
   const headers = ['月', '案管個案數', '申報人數', '申報金額', ...(withStaffFlow ? ['新進居督', '離職居督', '新進照服員', '離職照服員'] : [])]
   const body = rows.map((r) => [
-    `${r.month}月`, r.cases, r.claimants, r.amount ? fmtNum(Number(r.amount.replace(/,/g, '')) || 0) : '',
-    ...(withStaffFlow ? [r.staff.supNew, r.staff.supLeave, r.staff.cgNew, r.staff.cgLeave].map(String) : []),
+    `${r.month}月`, r.cases, r.claimants, r.amount ? fmtNum(toNum(r.amount)) : '',
+    ...(withStaffFlow ? FLOW.map((k) => r.shown[k]) : []),
   ])
   const s = (k: 'cases' | 'claimants' | 'amount') => sumAvg(rows.map((r) => r[k]))
   const flow = (k: StaffCountKey) => rows.reduce((a, r) => a + r.staff[k], 0)
   const foot = [
-    ['總計', fmtNum(s('cases').sum), fmtNum(s('claimants').sum), fmtNum(s('amount').sum),
-      ...(withStaffFlow ? (['supNew', 'supLeave', 'cgNew', 'cgLeave'] as StaffCountKey[]).map((k) => String(flow(k))) : [])],
-    ['平均', fmtNum(s('cases').avg, 1), fmtNum(s('claimants').avg, 1), fmtNum(s('amount').avg, 0),
-      ...(withStaffFlow ? (['supNew', 'supLeave', 'cgNew', 'cgLeave'] as StaffCountKey[]).map((k) => fmtNum(flow(k) / 12, 1)) : [])],
+    ['總計', fmtNum(s('cases').sum), fmtNum(s('claimants').sum), fmtNum(s('amount').sum), ...(withStaffFlow ? FLOW.map((k) => String(flow(k))) : [])],
+    ['平均', fmtNum(s('cases').avg, 1), fmtNum(s('claimants').avg, 1), fmtNum(s('amount').avg, 0), ...(withStaffFlow ? FLOW.map(() => '') : [])],
   ]
   return { headers, rows: body, foot }
 }
@@ -56,16 +55,21 @@ export function CapacityPage() {
         { label: '員工人數', children: [{ label: '居督 男', width: 9 }, { label: '居督 女', width: 9 }, { label: '照服員 男', width: 10 }, { label: '照服員 女', width: 10 }] },
         { label: '人力異動', children: [{ label: '新進居督', width: 9 }, { label: '離職居督', width: 9 }, { label: '新進照服員', width: 10 }, { label: '離職照服員', width: 10 }] },
       ],
-      rows: rows.map((r) => [yl, r.month, r.cases, r.claimants, r.amount, ...STAFF_COLS.map((c) => r.staff[c.key])]),
+      rows: rows.map((r) => [
+        yl, r.month, r.cases, r.claimants, r.amount,
+        ...STAFF_COLS.map((c) => (r.shown[c.key] === '' ? '' : r.staff[c.key])),
+      ]),
     })
 
   const s = (k: 'cases' | 'claimants' | 'amount') => sumAvg(rows.map((r) => r[k]))
 
   return (
     <Page no="1-2" title="服務量能" actions={<><YearSelect /><button type="button" className="btn" onClick={exportIt}>匯出 Excel</button></>}>
+      <StaffWarnings link />
       <Card title={`${yl}年度每月服務量能`}>
         <p className="help">
-          個案數、申報人數、申報金額手動填。人數由員工名冊自動計算（月底在職人數、當月到職／離職人數），灰字為自動值，直接輸入可覆寫，清空即恢復自動。
+          個案數、申報人數、申報金額手動填。人數由員工名冊自動計算（月底在職人數、當月到職／離職人數），可以直接改；
+          手動改過的格子會以底色標示，清空就恢復自動計算。還沒到的月份不會自動帶人數。
         </p>
         <div className="table-wrap">
           <table className="grid capacity">
@@ -89,10 +93,15 @@ export function CapacityPage() {
                     <td key={c.key}>
                       <input
                         inputMode="numeric"
-                        className="auto"
-                        placeholder={String(r.auto[c.key])}
-                        value={data.capacity[year]?.[i]?.override?.[c.key] ?? ''}
-                        onChange={(e) => set(i, (m) => { m.override = { ...m.override, [c.key]: e.target.value } })}
+                        className={r.manual[c.key] ? 'manual' : ''}
+                        title={r.manual[c.key] ? `手動修改（自動計算為 ${r.future ? '—' : r.auto[c.key]}），清空可恢復自動` : '由員工名冊自動計算'}
+                        value={r.manual[c.key] ? (data.capacity[year]?.[i]?.override?.[c.key] ?? '') : r.shown[c.key]}
+                        onChange={(e) => {
+                          const v = e.target.value.trim()
+                          // 清空或改回自動值＝取消手動覆寫
+                          const next = v === '' || (!r.future && v === String(r.auto[c.key])) ? '' : v
+                          set(i, (m) => { m.override = { ...m.override, [c.key]: next } })
+                        }}
                       />
                     </td>
                   ))}
@@ -103,12 +112,12 @@ export function CapacityPage() {
               <tr>
                 <td className="no">總計</td>
                 <td>{fmtNum(s('cases').sum)}</td><td>{fmtNum(s('claimants').sum)}</td><td>{fmtNum(s('amount').sum)}</td>
-                {STAFF_COLS.map((c) => <td key={c.key}>{c.key.endsWith('New') || c.key.endsWith('Leave') ? rows.reduce((a, r) => a + r.staff[c.key], 0) : ''}</td>)}
+                {STAFF_COLS.map((c) => <td key={c.key}>{FLOW.includes(c.key) ? rows.reduce((a, r) => a + r.staff[c.key], 0) : ''}</td>)}
               </tr>
               <tr>
                 <td className="no">平均</td>
                 <td>{fmtNum(s('cases').avg, 1)}</td><td>{fmtNum(s('claimants').avg, 1)}</td><td>{fmtNum(s('amount').avg)}</td>
-                {STAFF_COLS.map((c) => <td key={c.key}>{fmtNum(rows.reduce((a, r) => a + r.staff[c.key], 0) / 12, 1)}</td>)}
+                {STAFF_COLS.map((c) => <td key={c.key} />)}
               </tr>
             </tfoot>
           </table>

@@ -2,7 +2,7 @@ import { byDate, fmtDate, inYear, todayIso, yearLabel } from '../fmt'
 import { exportDocx } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
 import { deletePhoto, getPhotos } from '../photos'
-import { uid, useStore } from '../store'
+import { uid, usePruneDrafts, useStore } from '../store'
 import type { CaseMeeting, Professional } from '../types'
 import {
   Area, Card, DateIn, confirmDelete, EditActions, Field, NameInput, NotFound, OptionSelect, orgName, Page, PhotoField,
@@ -25,21 +25,24 @@ export function CaseMeetingList() {
   const { year } = useYear()
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
+  usePruneDrafts()
   const list = data.caseMeetings.filter((m) => inYear(m.date, year)).sort(byDate)
 
   const add = () => {
+    // 地點、紀錄人通常不變，帶入最近一場的值
+    const prev = data.caseMeetings.filter((m) => !m.draft).sort(byDate).at(-1)
     const m: CaseMeeting = {
-      id: uid(), date: inYear(todayIso(), year) ? todayIso() : `${year}-01-01`, time: '', place: '', recorder: '',
-      professionals: [emptyProf()], summary: '', issues: '', suggestions: '', followup: '', photos: [],
+      id: uid(), date: inYear(todayIso(), year) ? todayIso() : `${year}-01-01`, time: '', place: prev?.place ?? '', recorder: prev?.recorder ?? '',
+      professionals: [emptyProf()], summary: '', issues: '', suggestions: '', followup: '', photos: [], draft: true,
     }
     update((d) => { d.caseMeetings.push(m) })
     location.hash = `${BACK}/${m.id}`
   }
 
   const exportTotal = () =>
-    exportXlsx(`${yl}年度跨專業討論會議總表`, {
+    exportXlsx(`${yl}年度個案討論會總表`, {
       org: orgName(data),
-      title: `${yl}年度跨專業討論會議總表`,
+      title: `${yl}年度個案討論會總表`,
       cols: [{ label: '序', width: 6 }, { label: '會議日期', width: 13 }, { label: '會議時間', width: 10 }, { label: '與會專業類別', width: 36 }],
       rows: list.map((m, i) => [i + 1, fmtDate(m.date, f), m.time, categories(m)]),
     })
@@ -47,7 +50,7 @@ export function CaseMeetingList() {
   return (
     <Page
       no="3-2"
-      title="個案討論會議"
+      title="個案討論會"
       actions={<>
         <YearSelect />
         <button type="button" className="btn ghost" disabled={!list.length} onClick={exportTotal}>匯出年度總表</button>
@@ -57,7 +60,7 @@ export function CaseMeetingList() {
       <RecordTable
         items={list}
         href={(m) => `${BACK}/${m.id}`}
-        empty={`${yl}年度還沒有個案討論會議，按「新增會議」開始。`}
+        empty={`${yl}年度還沒有個案討論會，按「新增會議」開始。`}
         cols={[
           { label: '會議日期', render: (m) => fmtDate(m.date, f), w: '7em' },
           { label: '時間', render: (m) => m.time, w: '4em' },
@@ -78,13 +81,15 @@ export function CaseMeetingEdit({ id }: { id: string }) {
   const set = (fn: (x: CaseMeeting) => void) =>
     update((d) => {
       const x = d.caseMeetings.find((y) => y.id === id)
-      if (x) fn(x)
+      if (!x) return
+      fn(x)
+      delete x.draft
     })
   const setProf = (i: number, k: 'name' | 'category', v: string) => set((x) => { x.professionals[i][k] = v })
 
   const onWord = async () =>
-    exportDocx(`個案討論會議紀錄_${fmtDate(m.date, f)}`, [
-      { t: 'title', sub: orgName(data), text: '個案討論會議紀錄' },
+    exportDocx(`個案討論會紀錄_${fmtDate(m.date, f)}`, [
+      { t: 'title', sub: orgName(data), text: '個案討論會紀錄' },
       { t: 'kv', pairs: [['會議日期', fmtDate(m.date, f)], ['會議時間', m.time], ['會議地點', m.place], ['紀錄', m.recorder]] },
       { t: 'h', text: '參與專業人員' },
       { t: 'table', headers: ['姓名', '專業類別'], rows: m.professionals.filter((p) => p.name || p.category).map((p) => [p.name, p.category]) },
@@ -92,14 +97,14 @@ export function CaseMeetingEdit({ id }: { id: string }) {
       { t: 'photos', photos: await getPhotos(m.photos) },
     ])
   const onDelete = () => {
-    if (!confirmDelete('個案討論會議紀錄')) return
+    if (!confirmDelete('個案討論會紀錄')) return
     m.photos.forEach((p) => deletePhoto(p))
     update((d) => { d.caseMeetings = d.caseMeetings.filter((x) => x.id !== id) })
     location.hash = BACK
   }
 
   return (
-    <Page no="3-2" title="個案討論會議紀錄" back={BACK} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
+    <Page no="3-2" title="個案討論會紀錄" back={BACK} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
       <Card title="基本資料">
         <div className="grid2">
           <Field label="會議日期"><DateIn value={m.date} onChange={(v) => set((x) => { x.date = v })} /></Field>

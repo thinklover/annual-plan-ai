@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { activeInYear, fmtDate, thisYear, yearLabel } from './fmt'
+import { activeInYear, fmtDate, staffIssues, thisYear, todayIso, yearLabel } from './fmt'
 import { addPhoto, deletePhoto, getPhotos, MAX_PHOTOS, type Photo } from './photos'
 import { optionsOf, useStore } from './store'
 import type { EvalData } from './types'
@@ -129,6 +129,33 @@ export function useNames(extra: string[] = []) {
   return [...new Set([...staff, ...extra, ...used].filter(Boolean))]
 }
 
+/** 目前在職的員工姓名（「全選名冊」用，不含外部人員） */
+export function useStaffNames() {
+  const { data } = useStore()
+  const { year } = useYear()
+  const ref = year === thisYear() ? todayIso() : `${year}-12-31`
+  return data.employees
+    .filter((e) => e.name && e.hireDate && e.hireDate <= ref && (!e.leaveDate || e.leaveDate > ref))
+    .map((e) => e.name)
+}
+
+/** 名冊資料不完整會讓人數算錯，在相關頁面提醒 */
+export function StaffWarnings({ link }: { link?: boolean }) {
+  const { data } = useStore()
+  const { year } = useYear()
+  const { noGender, unclassified, noHire } = staffIssues(data.employees, year)
+  if (!noGender.length && !unclassified.length && !noHire.length) return null
+  return (
+    <div className="notice">
+      <b>員工名冊有資料會影響人數統計：</b>
+      {noGender.length > 0 && <div>未填性別（不會算進男／女人數）：{noGender.join('、')}</div>}
+      {unclassified.length > 0 && <div>無法判斷是居督或照服員（不會算進人數，請填「長照小卡職別」）：{unclassified.join('、')}</div>}
+      {noHire.length > 0 && <div>未填到職日（不會出現在任何年度）：{noHire.join('、')}</div>}
+      {link && <a className="link" href="#/staff">前往員工名冊</a>}
+    </div>
+  )
+}
+
 export function NameInput({ value, onChange, names, placeholder }: { value: string; onChange: (v: string) => void; names: string[]; placeholder?: string }) {
   const id = useId()
   return (
@@ -139,7 +166,7 @@ export function NameInput({ value, onChange, names, placeholder }: { value: stri
   )
 }
 
-export function NamesInput({ value, onChange, names }: { value: string[]; onChange: (v: string[]) => void; names: string[] }) {
+export function NamesInput({ value, onChange, names, staff }: { value: string[]; onChange: (v: string[]) => void; names: string[]; staff: string[] }) {
   const [draft, setDraft] = useState('')
   const id = useId()
   const add = (raw: string) => {
@@ -177,8 +204,8 @@ export function NamesInput({ value, onChange, names }: { value: string[]; onChan
           onBlur={() => draft && add(draft)}
         />
         <datalist id={id}>{rest.map((n) => <option key={n} value={n} />)}</datalist>
-        {rest.length > 0 && (
-          <button type="button" className="btn tiny ghost" onClick={() => onChange([...value, ...rest])}>全選名冊</button>
+        {staff.some((n) => !value.includes(n)) && (
+          <button type="button" className="btn tiny ghost" title="加入目前在職的全部員工" onClick={() => onChange([...new Set([...value, ...staff])])}>全選在職員工</button>
         )}
       </div>
     </div>

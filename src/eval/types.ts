@@ -44,6 +44,7 @@ export interface Employee {
   ba17: string
   cprExpiry: string
   yearly: Record<string, EmployeeYear>
+  draft?: boolean
 }
 
 export interface CapacityMonth {
@@ -72,6 +73,8 @@ export interface Meeting {
   topics: Topic[]
   nextFollow: string
   photos: string[]
+  /** 剛按「新增」還沒編輯過；回到列表時自動清除 */
+  draft?: boolean
 }
 
 export interface Supervision {
@@ -82,6 +85,7 @@ export interface Supervision {
   feedback: string
   plan: string
   supervisor: string
+  draft?: boolean
 }
 
 export type IncidentKind = 'accident' | 'complaint'
@@ -96,6 +100,7 @@ export interface Incident {
   followup: string
   supervisorNote: string
   managerNote: string
+  draft?: boolean
 }
 export interface IncidentReport {
   /** 3-1 類型統計表的「主要內容簡述」，依類型 */
@@ -117,6 +122,7 @@ export interface CaseMeeting {
   suggestions: string
   followup: string
   photos: string[]
+  draft?: boolean
 }
 
 export interface PlanAction {

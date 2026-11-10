@@ -31,7 +31,7 @@ const ITEMS: Item[] = [
   { no: '2-3', title: '團體督導會議', desc: '會議紀錄與年度總表', icon: 'group', tone: 'blue', href: '#/meetings/group' },
   { no: '2-4', title: '個別督導紀錄', desc: '個督紀錄與年度總表', icon: 'person', tone: 'blue', href: '#/supervision' },
   { no: '3-1', title: '意外或緊急事件', desc: '事件紀錄、年度分析與改善', icon: 'alert', tone: 'amber', href: '#/incidents/accident' },
-  { no: '3-2', title: '個案討論會議', desc: '會議紀錄與年度總表', icon: 'case', tone: 'amber', href: '#/casemeet' },
+  { no: '3-2', title: '個案討論會', desc: '會議紀錄與年度總表', icon: 'case', tone: 'amber', href: '#/casemeet' },
   { no: '3-3', title: '意見反映或申訴', desc: '事件紀錄、年度分析與改善', icon: 'voice', tone: 'amber', href: '#/incidents/complaint' },
   { no: '3-4', title: '服務滿意度調查', desc: '建置中', icon: 'smile', tone: 'gray' },
 ]

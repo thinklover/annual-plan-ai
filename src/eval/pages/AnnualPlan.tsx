@@ -45,7 +45,19 @@ function gantt(plan: AnnualPlan) {
   }
 }
 
-function planDoc(d: EvalData, year: number, plan: AnnualPlan, stage: Stage): DocBlock[] {
+const actionFilled = (a: PlanAction) => [a.name, a.item, a.indicator].some((s) => s.trim())
+/** 匯出用：略過完全沒填的 OKR 與行動方案 */
+function filledPlan(plan: AnnualPlan): AnnualPlan {
+  return {
+    ...plan,
+    okrs: plan.okrs
+      .map((o) => ({ ...o, actions: o.actions.filter(actionFilled) }))
+      .filter((o) => o.objective.trim() || o.actions.length),
+  }
+}
+
+function planDoc(d: EvalData, year: number, full: AnnualPlan, stage: Stage): DocBlock[] {
+  const plan = filledPlan(full)
   const yl = yearLabel(year, d.org.yearFormat)
   const org = orgName(d)
   const okrHead = (o: Okr, i: number): DocBlock => ({ t: 'h', text: `（${cnNo(i)}）OKR${i + 1}：${o.objective}` })

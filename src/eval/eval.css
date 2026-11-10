@@ -83,3 +83,11 @@ h4 .help { font-weight: normal; margin-left: 6px; }
   .topbar-actions { width: 100%; justify-content: flex-start; }
 }
 .date-in { display: grid; gap: 2px; }
+.save-error { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; background: var(--danger); color: #fff; padding: 10px 20px; font-size: 14px; text-align: center; }
+.notice .link { color: inherit; text-decoration: underline; padding: 0; }
+table.capacity input.manual { background: var(--warn-soft); }
+.chip.danger { background: #fbe9e7; color: var(--danger); }
+.pending { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pending button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 2px 12px; cursor: pointer; }
+.pending button:hover { border-color: var(--primary); color: var(--primary); }
+.staff-modal { width: min(760px, 94vw); max-height: 92vh; overflow: auto; }
