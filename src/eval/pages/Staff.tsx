@@ -208,7 +208,7 @@ export function StaffPage() {
   ]
 
   return (
-    <Page no="1-1" title="基本資料建置與連動（員工名冊）" actions={<YearSelect />}>
+    <Page title="基本資料建置與連動（員工名冊）" actions={<YearSelect />}>
       <StaffWarnings />
       <Card title="員工名冊" actions={<button type="button" className="btn small" onClick={add}>＋ 新增員工</button>}>
         <p className="help">點一列可編輯完整資料（體檢、特殊訓練證號等）。基本資料跨年度共用。</p>

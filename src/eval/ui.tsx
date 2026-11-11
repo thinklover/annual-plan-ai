@@ -32,6 +32,7 @@ export function YearSelect() {
   if (!years.includes(year)) years.push(year)
   return (
     <label className="year-select">
+      <span>年度</span>
       <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
         {years.sort((a, b) => b - a).map((y) => (
           <option key={y} value={y}>{yearLabel(y, f)} 年度</option>
@@ -49,16 +50,21 @@ export function useYearText() {
 }
 
 // ---------- 版面 ----------
-export function Page({ title, no, actions, children, back = '#/' }: { title: string; no?: string; actions?: ReactNode; children: ReactNode; back?: string }) {
+export function Page({ title, actions, children, back = '#/' }: { title: string; actions?: ReactNode; children: ReactNode; back?: string }) {
+  const { data } = useStore()
   return (
     <>
-      <header className="topbar">
-        <a className="btn ghost small" href={back}>← 返回</a>
-        <div className="topbar-title">
-          {no && <span className="block-no">{no}</span>}
-          <h1>{title}</h1>
+      <header className="page-head">
+        <div className="page-head-inner">
+          <a className="page-back" href={back} title="返回" aria-label="返回">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          </a>
+          <div className="page-title">
+            <span className="page-kicker">{data.org.name || '居家評鑑資料系統'}</span>
+            <h1>{title}</h1>
+          </div>
+          {actions && <div className="page-actions">{actions}</div>}
         </div>
-        <div className="topbar-actions">{actions}</div>
       </header>
       <main className="eval-main">{children}</main>
     </>

@@ -13,11 +13,11 @@ import {
 type TextKey = 'reporter' | 'description' | 'response' | 'followup' | 'supervisorNote' | 'managerNote'
 
 const META: Record<IncidentKind, {
-  no: string; title: string; record: string; report: string; optKey: string
+  title: string; record: string; report: string; optKey: string
   fields: [TextKey, string][]
 }> = {
   accident: {
-    no: '3-1', title: '意外或緊急事件', record: '意外或緊急事件紀錄', report: '意外事件分析檢討', optKey: 'accidentType',
+    title: '意外或緊急事件', record: '意外或緊急事件紀錄', report: '意外事件分析檢討', optKey: 'accidentType',
     fields: [
       ['description', '事件說明（事發情境、人、時、地、物）'],
       ['response', '事發當下因應措施'],
@@ -27,7 +27,7 @@ const META: Record<IncidentKind, {
     ],
   },
   complaint: {
-    no: '3-3', title: '意見反映或申訴事件', record: '意見反映或申訴事件紀錄', report: '意見反映/申訴事件分析與改善', optKey: 'complaintType',
+    title: '意見反映或申訴事件', record: '意見反映或申訴事件紀錄', report: '意見反映/申訴事件分析與改善', optKey: 'complaintType',
     fields: [
       ['reporter', '意見反映或申訴者'],
       ['description', '事件說明（情境、人、時、地、物）'],
@@ -71,7 +71,6 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
 
   return (
     <Page
-      no={meta.no}
       title={meta.title}
       actions={<>
         <YearSelect />
@@ -123,7 +122,7 @@ export function IncidentEdit({ kind, id }: { kind: IncidentKind; id: string }) {
   }
 
   return (
-    <Page no={meta.no} title={meta.record} back={back} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
+    <Page title={meta.record} back={back} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
       <Card title="事件紀錄">
         <div className="grid2">
           <Field label="發生日期"><DateIn value={x.date} onChange={(v) => set((y) => { y.date = v })} /></Field>
@@ -271,7 +270,6 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
 
   return (
     <Page
-      no={meta.no}
       title={`年度分析與改善：${meta.title}`}
       back={`#/incidents/${kind}`}
       actions={<>

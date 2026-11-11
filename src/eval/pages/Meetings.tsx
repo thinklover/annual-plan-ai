@@ -9,9 +9,9 @@ import {
   RecordTable, Text, useNames, useStaffNames, useYear, YearSelect,
 } from '../ui'
 
-const META: Record<MeetingKind, { no: string; title: string; record: string }> = {
-  admin: { no: '2-2', title: '行政會議', record: '行政會議紀錄' },
-  group: { no: '2-3', title: '團體督導會議', record: '團體督導會議紀錄' },
+const META: Record<MeetingKind, { title: string; record: string }> = {
+  admin: { title: '行政會議', record: '行政會議紀錄' },
+  group: { title: '團體督導會議', record: '團體督導會議紀錄' },
 }
 
 const CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五']
@@ -81,7 +81,6 @@ export function MeetingList({ kind }: { kind: MeetingKind }) {
 
   return (
     <Page
-      no={meta.no}
       title={meta.title}
       actions={<>
         <YearSelect />
@@ -158,7 +157,7 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
   }
 
   return (
-    <Page no={meta.no} title={`${meta.title}紀錄`} back={back} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
+    <Page title={`${meta.title}紀錄`} back={back} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
       <Card title="基本資料">
         <div className="grid3">
           <Field label="會議日期"><DateIn value={m.date} onChange={(v) => set((x) => { x.date = v })} /></Field>

@@ -149,7 +149,6 @@ export function AnnualPlanPage() {
 
   return (
     <Page
-      no="2-1"
       title="年度業務計畫"
       actions={<>
         <YearSelect />

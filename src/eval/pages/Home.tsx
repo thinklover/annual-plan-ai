@@ -22,18 +22,18 @@ const ICONS = {
   smile: I(<><circle cx="12" cy="12" r="9" /><path d="M8.5 14.5c.9 1.2 2.1 1.8 3.5 1.8s2.6-.6 3.5-1.8" /><path d="M9 9.5h.01M15 9.5h.01" /></>),
 }
 
-interface Item { no: string; title: string; desc: string; icon: keyof typeof ICONS; tone: string; href?: string }
+interface Item { title: string; desc: string; icon: keyof typeof ICONS; tone: string; href?: string }
 const ITEMS: Item[] = [
-  { no: '1-1', title: '員工名冊', desc: '基本資料、體檢、特殊訓練與訓練時數總表', icon: 'staff', tone: 'teal', href: '#/staff' },
-  { no: '1-2', title: '服務量能', desc: '每月個案數、申報與人力異動', icon: 'chart', tone: 'teal', href: '#/capacity' },
-  { no: '2-1', title: '年度業務計畫', desc: '年初計畫、年中檢討、年終成果', icon: 'plan', tone: 'blue', href: '#/plan' },
-  { no: '2-2', title: '行政會議', desc: '會議紀錄與年度總表', icon: 'meeting', tone: 'blue', href: '#/meetings/admin' },
-  { no: '2-3', title: '團體督導會議', desc: '會議紀錄與年度總表', icon: 'group', tone: 'blue', href: '#/meetings/group' },
-  { no: '2-4', title: '個別督導紀錄', desc: '個督紀錄與年度總表', icon: 'person', tone: 'blue', href: '#/supervision' },
-  { no: '3-1', title: '意外或緊急事件', desc: '事件紀錄、年度分析與改善', icon: 'alert', tone: 'amber', href: '#/incidents/accident' },
-  { no: '3-2', title: '個案討論會', desc: '會議紀錄與年度總表', icon: 'case', tone: 'amber', href: '#/casemeet' },
-  { no: '3-3', title: '意見反映或申訴', desc: '事件紀錄、年度分析與改善', icon: 'voice', tone: 'amber', href: '#/incidents/complaint' },
-  { no: '3-4', title: '服務滿意度調查', desc: '建置中', icon: 'smile', tone: 'gray' },
+  { title: '員工名冊', desc: '基本資料、體檢、特殊訓練與訓練時數總表', icon: 'staff', tone: 'teal', href: '#/staff' },
+  { title: '服務量能', desc: '每月個案數、申報與人力異動', icon: 'chart', tone: 'teal', href: '#/capacity' },
+  { title: '年度業務計畫', desc: '年初計畫、年中檢討、年終成果', icon: 'plan', tone: 'blue', href: '#/plan' },
+  { title: '行政會議', desc: '會議紀錄與年度總表', icon: 'meeting', tone: 'blue', href: '#/meetings/admin' },
+  { title: '團體督導會議', desc: '會議紀錄與年度總表', icon: 'group', tone: 'blue', href: '#/meetings/group' },
+  { title: '個別督導紀錄', desc: '個督紀錄與年度總表', icon: 'person', tone: 'blue', href: '#/supervision' },
+  { title: '意外或緊急事件', desc: '事件紀錄、年度分析與改善', icon: 'alert', tone: 'amber', href: '#/incidents/accident' },
+  { title: '個案討論會', desc: '會議紀錄與年度總表', icon: 'case', tone: 'amber', href: '#/casemeet' },
+  { title: '意見反映或申訴', desc: '事件紀錄、年度分析與改善', icon: 'voice', tone: 'amber', href: '#/incidents/complaint' },
+  { title: '服務滿意度調查', desc: '建置中', icon: 'smile', tone: 'gray' },
 ]
 
 const ORG_FIELDS: [keyof Org, string, boolean][] = [
@@ -119,15 +119,14 @@ export function Home() {
               <>
                 <span className={`tile-icon ${it.tone}`}>{ICONS[it.icon]}</span>
                 <span className="tile-text">
-                  <span className="tile-no">{it.no}</span>
                   <b>{it.title}</b>
                   <span className="tile-desc">{it.desc}</span>
                 </span>
               </>
             )
             return it.href
-              ? <a key={it.no} className="tile" href={it.href}>{body}</a>
-              : <div key={it.no} className="tile off">{body}</div>
+              ? <a key={it.title} className="tile" href={it.href}>{body}</a>
+              : <div key={it.title} className="tile off">{body}</div>
           })}
         </div>
 

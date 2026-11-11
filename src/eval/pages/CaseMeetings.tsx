@@ -49,7 +49,6 @@ export function CaseMeetingList() {
 
   return (
     <Page
-      no="3-2"
       title="個案討論會"
       actions={<>
         <YearSelect />
@@ -104,7 +103,7 @@ export function CaseMeetingEdit({ id }: { id: string }) {
   }
 
   return (
-    <Page no="3-2" title="個案討論會紀錄" back={BACK} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
+    <Page title="個案討論會紀錄" back={BACK} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
       <Card title="基本資料">
         <div className="grid2">
           <Field label="會議日期"><DateIn value={m.date} onChange={(v) => set((x) => { x.date = v })} /></Field>

@@ -57,7 +57,6 @@ export function SupervisionList() {
 
   return (
     <Page
-      no="2-4"
       title="個別督導紀錄"
       actions={<>
         <YearSelect />
@@ -125,7 +124,7 @@ export function SupervisionEdit({ id }: { id: string }) {
   }
 
   return (
-    <Page no="2-4" title="個別督導紀錄" back={BACK} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
+    <Page title="個別督導紀錄" back={BACK} actions={<EditActions onWord={onWord} onDelete={onDelete} />}>
       <Card title="基本資料">
         <div className="grid3">
           <Field label="個督日期"><DateIn value={s.date} onChange={(v) => set((x) => { x.date = v })} /></Field>

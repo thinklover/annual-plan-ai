@@ -64,7 +64,7 @@ export function CapacityPage() {
   const s = (k: 'cases' | 'claimants' | 'amount') => sumAvg(rows.map((r) => r[k]))
 
   return (
-    <Page no="1-2" title="服務量能" actions={<><YearSelect /><button type="button" className="btn" onClick={exportIt}>匯出 Excel</button></>}>
+    <Page title="服務量能" actions={<><YearSelect /><button type="button" className="btn" onClick={exportIt}>匯出 Excel</button></>}>
       <StaffWarnings link />
       <Card title={`${yl}年度每月服務量能`}>
         <p className="help">
