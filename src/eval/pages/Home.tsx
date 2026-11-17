@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { SettingsModal } from '../../components/SettingsModal'
 import { getSettings } from '../../storage'
+import { APP_VERSION, buildInfo } from '../../version'
 import { signOut } from '../db'
 import { useStore } from '../store'
 import type { Org } from '../types'
@@ -98,7 +99,9 @@ export function Home() {
       <header className="hero">
         <div className="hero-inner">
           <div className="hero-text">
-            <span className="hero-kicker">居家評鑑資料系統</span>
+            <span className="hero-kicker">
+              居家評鑑資料系統<span className="hero-version" title={buildInfo()}>v{APP_VERSION}</span>
+            </span>
             <h1>{o.name || '尚未設定機構'}</h1>
             {o.vision ? <p>{o.vision}</p> : <p>評鑑資料建置、紀錄與年度總表，一處完成。</p>}
           </div>
@@ -137,8 +140,6 @@ export function Home() {
               : <div key={it.title} className="tile off">{body}</div>
           })}
         </div>
-
-        <p className="home-foot">資料儲存在雲端資料庫，登入帳號：{email}</p>
       </main>
 
       {showOrg && <OrgModal onClose={() => setShowOrg(false)} />}

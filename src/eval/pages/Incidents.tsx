@@ -56,6 +56,17 @@ const filledRows = (rep: IncidentReport) => rep.improvements.filter((r) => r.pro
 const listOf = (d: EvalData, kind: IncidentKind, year: number) =>
   d.incidents.filter((x) => x.kind === kind && inYear(x.date, year)).sort(byDate)
 
+/** 事件列表／年度分析與改善 兩個分頁 */
+function IncidentTabs({ kind, on }: { kind: IncidentKind; on: 'list' | 'report' }) {
+  const base = `#/incidents/${kind}`
+  return (
+    <nav className="seg stage-tabs">
+      <a href={base} className={on === 'list' ? 'on' : ''}>事件列表</a>
+      <a href={`${base}/report`} className={on === 'report' ? 'on' : ''}>年度分析與改善</a>
+    </nav>
+  )
+}
+
 export function IncidentList({ kind }: { kind: IncidentKind }) {
   const { data, update, go } = useStore()
   const { year } = useYear()
@@ -97,11 +108,11 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
       title={meta.title}
       actions={<>
         <YearSelect />
-        <a className="btn ghost" href={`${base}/report`}>年度分析與改善</a>
         <button type="button" className="btn ghost" disabled={!list.length} onClick={exportTotal}>匯出年度總表</button>
         <button type="button" className="btn" onClick={add}>＋ 新增事件</button>
       </>}
     >
+      <IncidentTabs kind={kind} on="list" />
       <RecordTable
         items={list}
         href={(x) => `${base}/${x.id}`}
@@ -313,14 +324,14 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
 
   return (
     <Page
-      title={`年度分析與改善：${meta.title}`}
+      title={meta.title}
       submit
-      back={`#/incidents/${kind}`}
       actions={<>
         <YearSelect />
         <button type="button" className="btn" onClick={() => exportDocx(title, reportDoc(data, kind, year, rep))}>匯出 Word</button>
       </>}
     >
+      <IncidentTabs kind={kind} on="report" />
       <Card title={kind === 'accident' ? '一、事件類別分類統計與佔比' : '一、事件類型件數統計'} tip={`由本年度事件紀錄自動統計（共 ${st.total} 件）。`}>
         {!st.total && <div className="notice">本年度沒有事件紀錄，匯出的 Word 會寫「{yearLabel(year, f)}年度未發生{meta.title}」，不印統計表。</div>}
         <div className="table-wrap"><table className="grid">
