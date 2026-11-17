@@ -85,6 +85,8 @@ export interface Supervision {
   feedback: string
   plan: string
   supervisor: string
+  /** 雙方簽名的紀錄表等附檔（照片或掃描圖檔） */
+  photos: string[]
   draft?: boolean
 }
 
@@ -100,14 +102,20 @@ export interface Incident {
   followup: string
   supervisorNote: string
   managerNote: string
+  /** 主責居督、單位主管姓名，由員工名冊帶入 */
+  supervisorName: string
+  managerName: string
   draft?: boolean
 }
 export interface IncidentReport {
   /** 3-1 類型統計表的「主要內容簡述」，依類型 */
   summaries: Record<string, string>
   cause: string
-  improvement: string
+  /** 舊版的單欄改善措施；載入時轉成 improvements */
+  improvement?: string
+  improvements: Improvement[]
 }
+export interface Improvement { id: string; problem: string; measure: string }
 
 export interface Professional { id: string; name: string; category: string }
 export interface CaseMeeting {
@@ -138,6 +146,8 @@ export interface PlanAction {
 export interface Okr {
   id: string
   objective: string
+  /** 關鍵結果（KR），預設 2 個 */
+  krs: string[]
   actions: PlanAction[]
   midProblem: string
   midRevise: string
@@ -149,6 +159,8 @@ export interface AnnualPlan {
   swot: { s: string; w: string; o: string; t: string }
   bsc: { financial: string; customer: string; process: string; learning: string }
   okrs: Okr[]
+  /** 年終成果「機構現況」表格下方的文字敘述 */
+  endNarrative: string
 }
 
 export interface EvalData {

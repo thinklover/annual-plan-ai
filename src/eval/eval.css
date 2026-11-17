@@ -110,3 +110,62 @@ table.capacity input.manual { background: var(--warn-soft); }
 .field { align-content: start; }
 input:not([type='checkbox']):not([type='radio']):not([type='file']), select { height: 38px; }
 table.grid input:not([type='checkbox']):not([type='radio']):not([type='file']), table.grid select { height: 32px; }
+
+/* ---------- 2026-11-17 反饋修訂 ---------- */
+.ai-import { display: grid; gap: 6px; background: #f7f9f8; border: 1px dashed #c9d8d4; border-radius: 10px; padding: 8px 12px; }
+.ai-import .row { align-items: center; flex-wrap: wrap; }
+.ai-import .help { flex: 1; min-width: 16em; }
+/* 還沒填的格子以底色提醒 */
+table.grid td.unfilled { background: var(--warn-soft); }
+table.grid td.unfilled input { background: transparent; }
+.legend-unfilled { display: inline-block; width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 4px; background: var(--warn-soft); border: 1px solid #f1d2b8; border-radius: 3px; }
+.kr-list { display: grid; gap: 6px; }
+.kr-list .row { align-items: center; }
+.kr-list .row b { flex: none; width: 3em; color: var(--primary); }
+.kr-list .row input { flex: 1; width: auto; }
+.name-line { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.name-line span { flex: none; font-size: 14px; color: var(--muted); }
+.name-line input { max-width: 16em; }
+.kr-box b { width: 3.2em; }
+
+/* ---------- 說明提示（驚嘆號圖示） ---------- */
+.tip { display: inline-flex; align-items: center; justify-content: center; vertical-align: -3px; margin-left: 5px; color: var(--warn); cursor: help; border-radius: 50%; outline: none; flex: none; }
+.tip:hover, .tip:focus-visible { color: var(--primary); }
+.tip:focus-visible { box-shadow: 0 0 0 2px var(--primary-soft); }
+.tip-pop { position: fixed; z-index: 200; background: #24403b; color: #fff; font-size: 13px; font-weight: normal; line-height: 1.6; letter-spacing: 0; text-align: left; white-space: normal;
+  padding: 8px 12px; border-radius: 8px; box-shadow: 0 6px 20px rgba(20, 40, 40, 0.25); pointer-events: none; }
+.tip-pop .legend-unfilled { margin-right: 6px; }
+.block-head .row .tip { margin: 0 2px 0 0; }
+.help:empty { display: none; }
+
+/* ---------- 表格依內容自適應；太寬時在表格範圍內左右捲動 ---------- */
+.table-wrap { overflow-x: auto; max-width: 100%; }
+.block-body { min-width: 0; }
+table.grid { width: max-content; min-width: 100%; }
+table.grid th, table.grid td { white-space: nowrap; }
+/* 長文字的格子可以換行，但保留足夠寬度 */
+table.grid td:has(textarea), table.grid td.long, table.grid td:has(.clip) { white-space: normal; min-width: 14em; max-width: 32em; }
+table.grid td.long .ro, table.grid td.long { white-space: pre-wrap; }
+table.ro-table td { white-space: nowrap; }
+table.grid td:has(> input), table.grid td:has(> select) { min-width: 6em; }
+table.grid td:has(> input[type='date']) { min-width: 10em; }
+table.grid td:has(> input[list]) { min-width: 9em; }
+table.grid td.no, table.grid th.no, table.grid td.ops { min-width: 0; }
+table.cal td.mcol { min-width: 3.2em; }
+/* 輸入框本身不撐寬欄位（瀏覽器預設約 20 字寬），由上面的格子最小寬度決定，再填滿格子 */
+table.grid td > input:not([type='checkbox']), table.grid td > select, table.grid td > textarea { width: 0; min-width: 100%; }
+table.capacity td:has(> input) { min-width: 5.5em; }
+
+/* 提交按鈕與未提交提示 */
+.saved.unsaved { color: var(--danger); font-weight: 600; }
+.btn.submit:disabled { opacity: .45; cursor: default; }
+
+/* 登入與載入畫面 */
+.gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, #17655a 0%, #1f7a6d 55%, #2c8f7f 100%); }
+.gate-card { width: min(380px, 100%); background: #fff; border-radius: 14px; padding: 28px 26px; display: grid; gap: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18); }
+.gate-card h1 { margin: 0; font-size: 20px; }
+.gate-card p { margin: 0; font-size: 14px; color: #5b6b68; }
+.gate-card label { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+.gate-card input { width: 100%; }
+.gate-card .err { margin: 0; }
+.save-error .btn { margin-left: 12px; }

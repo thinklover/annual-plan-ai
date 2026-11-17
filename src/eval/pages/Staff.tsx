@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   activeInYear, activeOn, cprStatus, fmtDate, fmtNum, isCaregiver, isSupervisor, round2, thisYear, todayIso, toNum, yearLabel,
 } from '../fmt'
 import { exportXlsx } from '../exportXlsx'
+import { applyStaffImport, downloadStaffTemplate, parseStaffXlsx } from '../importStaff'
 import { emptyEmployeeYear, renameEverywhere, uid, useStore } from '../store'
 import { HOUR_KEYS, HOUR_LABELS, type Employee, type EmployeeYear, type HourKey } from '../types'
-import { Card, confirmDelete, DateIn, Field, OptionSelect, orgName, Page, StaffWarnings, Text, useYear, YearSelect } from '../ui'
+import { Card, confirmDelete, DateIn, Field, OptionSelect, orgName, Page, StaffWarnings, Text, Tip, useYear, YearSelect } from '../ui'
 
 const newEmployee = (): Employee => ({
   id: uid(), name: '', gender: '', title: '', cardRole: '', hireDate: '', leaveDate: '', hireCheckDate: '',
@@ -29,26 +30,29 @@ const MODAL_FIELDS: { key: BasicKey; label: string; kind?: 'date' | 'gender' | '
 ]
 
 function EmployeeModal({ id, onClose }: { id: string; onClose: () => void }) {
-  const { data, update } = useStore()
+  const { data, dirty, update, updateNow, submit, discard } = useStore()
   const e = data.employees.find((x) => x.id === id)
-  // 開啟時的姓名：關閉時若改了名字，同步更新所有紀錄
+  // 開啟時的姓名：提交時若改了名字，同步更新所有紀錄
   const [origName] = useState(() => e?.name ?? '')
+  const [busy, setBusy] = useState(false)
   if (!e) return null
   const set = (k: BasicKey, v: string) =>
     update((d) => {
       const x = d.employees.find((y) => y.id === id)
       if (x) (x[k] as string) = v
     })
-  const remove = () => update((d) => { d.employees = d.employees.filter((x) => x.id !== id) })
+  const remove = () => updateNow((d) => { d.employees = d.employees.filter((x) => x.id !== id) })
 
-  const close = () => {
+  /** 不提交就關閉：捨棄這次的修改 */
+  const cancel = () => {
+    const blankNew = e.draft && MODAL_FIELDS.every((f) => !e[f.key])
+    if (dirty && !blankNew && !window.confirm('有修改尚未提交，關閉會捨棄這些修改。確定嗎？')) return
+    if (dirty) discard()
+    onClose()
+  }
+  const save = async () => {
     const name = e.name.trim()
-    if (!name) {
-      const blank = MODAL_FIELDS.every((f) => !e[f.key])
-      if (!blank && !window.confirm('尚未填寫姓名，關閉會捨棄這筆員工資料。確定嗎？')) return
-      remove()
-      return onClose()
-    }
+    if (!name) return window.alert('請填寫姓名')
     update((d) => {
       const x = d.employees.find((y) => y.id === id)
       if (!x) return
@@ -57,13 +61,19 @@ function EmployeeModal({ id, onClose }: { id: string; onClose: () => void }) {
       const othersUseOld = d.employees.some((y) => y.id !== id && y.name === origName)
       if (origName && origName !== name && !othersUseOld) renameEverywhere(d, origName, name)
     })
-    onClose()
+    setBusy(true)
+    const ok = await submit()
+    setBusy(false)
+    if (ok) onClose()
   }
 
   return (
-    <div className="modal-bg" onClick={close}>
+    <div className="modal-bg" onClick={cancel}>
       <div className="modal staff-modal" onClick={(ev) => ev.stopPropagation()}>
-        <h3>{e.draft ? '新增員工' : `編輯員工：${origName}`}</h3>
+        <h3>
+          {e.draft ? '新增員工' : `編輯員工：${origName}`}
+          <Tip>居督／照服員依「長照小卡職別」分類。離職請填離職日，不要刪除。改名會同步更新會議、個督等紀錄裡的姓名。</Tip>
+        </h3>
         <div className="grid2">
           {MODAL_FIELDS.map((f) => (
             <Field key={f.key} label={f.label}>
@@ -81,18 +91,16 @@ function EmployeeModal({ id, onClose }: { id: string; onClose: () => void }) {
             </Field>
           ))}
         </div>
-        <p className="help">居督／照服員依「長照小卡職別」分類。離職請填離職日，不要刪除。改名會同步更新會議、個督等紀錄裡的姓名。</p>
         <div className="row between">
           {e.draft ? <span /> : (
             <button type="button" className="btn danger ghost" onClick={() => {
               if (!confirmDelete(`員工「${e.name || '未命名'}」`)) return
-              remove()
-              onClose()
+              void remove().then((ok) => ok && onClose())
             }}>刪除員工</button>
           )}
           <div className="row">
-            <span className="help">自動儲存</span>
-            <button type="button" className="btn primary" onClick={close}>完成</button>
+            <button type="button" className="btn ghost" onClick={cancel}>取消</button>
+            <button type="button" className="btn primary" disabled={busy} onClick={save}>{busy ? '提交中…' : '提交'}</button>
           </div>
         </div>
       </div>
@@ -101,7 +109,7 @@ function EmployeeModal({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 export function StaffPage() {
-  const { data, update } = useStore()
+  const { data, update, submit } = useStore()
   const { year } = useYear()
   const [editing, setEditing] = useState<string | null>(null)
   const f = data.org.yearFormat
@@ -124,11 +132,41 @@ export function StaffPage() {
   const remark = (e: Employee) => (e.leaveDate && e.leaveDate <= `${year}-12-31` ? '離職' : '')
   const org = orgName(data)
 
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
+  const onImport = async (file?: File) => {
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file) return
+    setImporting(true)
+    try {
+      const parsed = await parseStaffXlsx(file)
+      if (!parsed.rows.length) throw new Error('檔案裡沒有可匯入的員工資料（表頭列下方沒有填姓名的列）。')
+      const exist = new Set(emps.map((e) => e.name.trim()))
+      const nNew = new Set(parsed.rows.map((r) => r.values.name!).filter((n) => !exist.has(n))).size
+      const nUpd = new Set(parsed.rows.map((r) => r.values.name!).filter((n) => exist.has(n))).size
+      const ok = window.confirm(
+        `讀到 ${parsed.rows.length} 列：新增 ${nNew} 人、更新 ${nUpd} 人。\n年度健檢日期與訓練時數會匯入到 ${yl} 年度。\n\n確定匯入嗎？`,
+      )
+      if (!ok) return
+      update((d) => { applyStaffImport(d, parsed.rows, year) })
+      if (!(await submit())) return
+      const skipped = parsed.warnings.length
+      window.alert(skipped ? `匯入成功（有 ${skipped} 筆資料無法辨識，已略過）` : '匯入成功')
+    } catch (e) {
+      window.alert((e as Error).message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const add = () => {
     const e = newEmployee()
     update((d) => { d.employees.push(e) })
     setEditing(e.id)
   }
+
+  /** 在職員工還沒填的格子以底色提醒 */
+  const miss = (e: Employee, v: string) => (!e.leaveDate && !v.trim() ? 'unfilled' : undefined)
 
   const flags = (e: Employee) => {
     const out: { text: string; cls: string }[] = []
@@ -208,10 +246,22 @@ export function StaffPage() {
   ]
 
   return (
-    <Page title="基本資料建置與連動（員工名冊）" actions={<YearSelect />}>
+    <Page title="基本資料建置與連動（員工名冊）" submit actions={<YearSelect />}>
       <StaffWarnings />
-      <Card title="員工名冊" actions={<button type="button" className="btn small" onClick={add}>＋ 新增員工</button>}>
-        <p className="help">點一列可編輯完整資料（體檢、特殊訓練證號等）。基本資料跨年度共用。</p>
+      <Card
+        title="員工名冊"
+        tip={<>點一列可編輯完整資料（體檢、特殊訓練證號等）。基本資料跨年度共用。<br /><span className="legend-unfilled" />底色的格子代表在職員工還沒填。</>}
+        actions={<>
+        <Tip>
+          人數多時可以先「下載匯入範本」，在 Excel 填好後按「匯入 Excel」。以姓名比對，已有的人更新、沒有的人新增；
+          範本裡的年度健檢日期與訓練時數會一併匯入到上方選擇的年度（目前 {yl} 年度）。
+        </Tip>
+        <button type="button" className="btn small ghost" onClick={() => downloadStaffTemplate(`${yl} 年度`)}>下載匯入範本</button>
+        <button type="button" className="btn small ghost" disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? '匯入中…' : '匯入 Excel'}</button>
+        <button type="button" className="btn small" onClick={add}>＋ 新增員工</button>
+        <input ref={fileRef} type="file" accept=".xlsx" hidden onChange={(e) => onImport(e.target.files?.[0])} />
+        </>}
+      >
         <div className="table-wrap">
           <table className="grid records">
             <thead>
@@ -226,12 +276,12 @@ export function StaffPage() {
                 <tr key={e.id} className={e.leaveDate ? 'left' : ''} onClick={() => setEditing(e.id)}>
                   <td className="no">{i + 1}</td>
                   <td><b>{e.name || '（未填姓名）'}</b></td>
-                  <td>{e.gender}</td>
-                  <td>{e.title}</td>
-                  <td>{e.cardRole}</td>
-                  <td>{fmtDate(e.hireDate, f)}</td>
+                  <td className={miss(e, e.gender)}>{e.gender}</td>
+                  <td className={miss(e, e.title)}>{e.title}</td>
+                  <td className={miss(e, e.cardRole)}>{e.cardRole}</td>
+                  <td className={miss(e, e.hireDate)}>{fmtDate(e.hireDate, f)}</td>
                   <td>{fmtDate(e.leaveDate, f)}</td>
-                  <td>{fmtDate(e.cprExpiry, f)}</td>
+                  <td className={miss(e, e.cprExpiry)}>{fmtDate(e.cprExpiry, f)}</td>
                   <td><span className="chips">{flags(e).map((x) => <span key={x.text} className={`chip ${x.cls}`}>{x.text}</span>)}</span></td>
                   <td className="ops"><button type="button" className="link">編輯</button></td>
                 </tr>
@@ -241,8 +291,10 @@ export function StaffPage() {
         </div>
       </Card>
 
-      <Card title={`${yl}年度資料：年度健檢與在職訓練時數`}>
-        <p className="help">列出本年度曾在職的員工。訓練時數填全年度各類總時數（小時）。</p>
+      <Card
+        title={`${yl}年度資料：年度健檢與在職訓練時數`}
+        tip={<>列出本年度曾在職的員工。訓練時數填全年度各類總時數（小時）。<br /><span className="legend-unfilled" />底色的格子代表還沒填；確定沒有時數請填 0。</>}
+      >
         <div className="table-wrap">
           <table className="grid">
             <thead>
@@ -258,9 +310,9 @@ export function StaffPage() {
                 <tr key={e.id}>
                   <td className="no">{i + 1}</td>
                   <td><span className="ro">{e.name}{remark(e) && <span className="chip muted">離職</span>}</span></td>
-                  <td><input type="date" value={yearlyOf(e).healthCheck} onChange={(ev) => setYearly(e.id, (y) => { y.healthCheck = ev.target.value })} /></td>
+                  <td className={miss(e, yearlyOf(e).healthCheck)}><input type="date" value={yearlyOf(e).healthCheck} onChange={(ev) => setYearly(e.id, (y) => { y.healthCheck = ev.target.value })} /></td>
                   {HOUR_KEYS.map((k) => (
-                    <td key={k} style={{ minWidth: '6em' }}>
+                    <td key={k} style={{ minWidth: '6em' }} className={miss(e, yearlyOf(e).hours[k])}>
                       <input inputMode="decimal" value={yearlyOf(e).hours[k]} onChange={(ev) => setYearly(e.id, (y) => { y.hours[k] = ev.target.value })} />
                     </td>
                   ))}
@@ -272,13 +324,12 @@ export function StaffPage() {
         </div>
       </Card>
 
-      <Card title={`${yl}年度總表匯出（Excel）`}>
+      <Card title={`${yl}年度總表匯出（Excel）`} tip="特殊訓練課程總表列出統計日（今年為今天、過去年度為年底）在職的員工；CPR 到期日已過的列為「無」。">
         <div className="row">
           {exports.map((x, i) => (
             <button key={x.label} type="button" className="btn ghost" onClick={() => x.run()}>{i + 1}. {x.label}</button>
           ))}
         </div>
-        <p className="help">特殊訓練課程總表列出統計日（今年為今天、過去年度為年底）在職的員工；CPR 到期日已過的列為「無」。</p>
       </Card>
 
       {editing && <EmployeeModal key={editing} id={editing} onClose={() => setEditing(null)} />}

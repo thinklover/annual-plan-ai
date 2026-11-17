@@ -7,20 +7,24 @@ import { IncidentEdit, IncidentList, IncidentReportPage } from './pages/Incident
 import { MeetingEdit, MeetingList } from './pages/Meetings'
 import { StaffPage } from './pages/Staff'
 import { SupervisionEdit, SupervisionList } from './pages/Supervision'
-import { StoreProvider } from './store'
+import { Gate } from './Gate'
+import { useStore } from './store'
 import type { IncidentKind, MeetingKind } from './types'
 import { Building, YearProvider } from './ui'
 
 function useHash() {
   const [hash, setHash] = useState(() => location.hash)
+  const { leave } = useStore()
   useEffect(() => {
-    const on = () => {
+    const on = (e: HashChangeEvent) => {
+      // 有修改尚未提交又不想離開：退回原本的頁面
+      if (!leave()) return location.replace(e.oldURL)
       setHash(location.hash)
       window.scrollTo(0, 0)
     }
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
-  }, [])
+  }, [leave])
   return hash.replace(/^#\/?/, '').split('/').filter(Boolean)
 }
 
@@ -46,10 +50,10 @@ function Route() {
 
 export default function App() {
   return (
-    <StoreProvider>
+    <Gate>
       <YearProvider>
         <Route />
       </YearProvider>
-    </StoreProvider>
+    </Gate>
   )
 }

@@ -16,7 +16,9 @@ export type DocBlock =
   /** 基本資料表：每列 [標籤, 值]，兩組並排 */
   | { t: 'kv'; pairs: [string, string][] }
   | { t: 'table'; headers: string[]; rows: string[][]; foot?: string[][] }
-  | { t: 'photos'; photos: Photo[] }
+  /** 編號段落表：每項一列標題（灰底）＋一列內容，整組框成一張表 */
+  | { t: 'sections'; items: [string, string][] }
+  | { t: 'photos'; photos: Photo[]; label?: string }
 
 const STYLES = {
   default: {
@@ -119,8 +121,19 @@ function render(b: DocBlock): (Paragraph | Table)[] {
         }),
         new Paragraph({ spacing: { after: 60 } }),
       ]
+    case 'sections':
+      return [
+        new Paragraph({ spacing: { after: 120 } }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: b.items.flatMap(([label, text]) => [
+            new TableRow({ cantSplit: true, children: [cell(label, { bold: true, shade: true })] }),
+            new TableRow({ children: [new TableCell({ borders, margins: { top: 80, bottom: 160, left: 120, right: 120 }, children: paras(text || '（無）') })] }),
+          ]),
+        }),
+      ]
     case 'photos':
-      return b.photos.length ? [new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: '會議照片', bold: true })] }), photoTable(b.photos)] : []
+      return b.photos.length ? [new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: b.label ?? '會議照片', bold: true })] }), photoTable(b.photos)] : []
   }
 }
 

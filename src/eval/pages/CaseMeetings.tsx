@@ -1,7 +1,7 @@
 import { byDate, fmtDate, inYear, todayIso, yearLabel } from '../fmt'
 import { exportDocx } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
-import { deletePhoto, getPhotos } from '../photos'
+import { getPhotos } from '../photos'
 import { uid, usePruneDrafts, useStore } from '../store'
 import type { CaseMeeting, Professional } from '../types'
 import {
@@ -13,15 +13,15 @@ const BACK = '#/casemeet'
 const categories = (m: CaseMeeting) => [...new Set(m.professionals.map((p) => p.category).filter(Boolean))].join('、')
 const emptyProf = (): Professional => ({ id: uid(), name: '', category: '' })
 
-const TEXT_FIELDS: [keyof Pick<CaseMeeting, 'summary' | 'issues' | 'suggestions' | 'followup'>, string][] = [
-  ['summary', '個案現況摘要（含已提供服務及因應措施）'],
-  ['issues', '跨專業討論的問題'],
-  ['suggestions', '與會專業人員建議之要點'],
-  ['followup', '跨專業討論的問題後續追蹤及結案說明'],
+const TEXT_FIELDS: [keyof Pick<CaseMeeting, 'summary' | 'issues' | 'suggestions' | 'followup'>, string, string][] = [
+  ['summary', '一、個案現況摘要（含已提供服務及因應措施）', '個案的基本狀況、目前使用的服務，以及已經採取的因應措施'],
+  ['issues', '二、跨專業討論的問題', '這次會議要請各專業一起討論的問題，一項一行'],
+  ['suggestions', '三、與會專業人員建議之要點', '各專業人員提出的建議，註明是哪個專業的建議'],
+  ['followup', '四、跨專業討論的問題後續追蹤及結案說明', '會後的執行情形、追蹤結果，以及是否結案'],
 ]
 
 export function CaseMeetingList() {
-  const { data, update } = useStore()
+  const { data, update, go } = useStore()
   const { year } = useYear()
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
@@ -36,15 +36,18 @@ export function CaseMeetingList() {
       professionals: [emptyProf()], summary: '', issues: '', suggestions: '', followup: '', photos: [], draft: true,
     }
     update((d) => { d.caseMeetings.push(m) })
-    location.hash = `${BACK}/${m.id}`
+    go(`${BACK}/${m.id}`)
   }
 
   const exportTotal = () =>
     exportXlsx(`${yl}年度個案討論會總表`, {
       org: orgName(data),
       title: `${yl}年度個案討論會總表`,
-      cols: [{ label: '序', width: 6 }, { label: '會議日期', width: 13 }, { label: '會議時間', width: 10 }, { label: '與會專業類別', width: 36 }],
-      rows: list.map((m, i) => [i + 1, fmtDate(m.date, f), m.time, categories(m)]),
+      cols: [
+        { label: '序', width: 6 }, { label: '會議日期', width: 13 }, { label: '會議時間', width: 10 },
+        { label: '跨專業討論的問題', width: 40 }, { label: '與會專業類別', width: 36 },
+      ],
+      rows: list.map((m, i) => [i + 1, fmtDate(m.date, f), m.time, m.issues, categories(m)]),
     })
 
   return (
@@ -72,7 +75,7 @@ export function CaseMeetingList() {
 }
 
 export function CaseMeetingEdit({ id }: { id: string }) {
-  const { data, update } = useStore()
+  const { data, update, updateNow, go } = useStore()
   const names = useNames()
   const m = data.caseMeetings.find((x) => x.id === id)
   if (!m) return <NotFound back={BACK} />
@@ -92,14 +95,12 @@ export function CaseMeetingEdit({ id }: { id: string }) {
       { t: 'kv', pairs: [['會議日期', fmtDate(m.date, f)], ['會議時間', m.time], ['會議地點', m.place], ['紀錄', m.recorder]] },
       { t: 'h', text: '參與專業人員' },
       { t: 'table', headers: ['姓名', '專業類別'], rows: m.professionals.filter((p) => p.name || p.category).map((p) => [p.name, p.category]) },
-      ...TEXT_FIELDS.map(([k, label]) => ({ t: 'box' as const, label, text: m[k] })),
+      { t: 'sections', items: TEXT_FIELDS.map(([k, label]) => [label, m[k]] as [string, string]) },
       { t: 'photos', photos: await getPhotos(m.photos) },
     ])
   const onDelete = () => {
     if (!confirmDelete('個案討論會紀錄')) return
-    m.photos.forEach((p) => deletePhoto(p))
-    update((d) => { d.caseMeetings = d.caseMeetings.filter((x) => x.id !== id) })
-    location.hash = BACK
+    void updateNow((d) => { d.caseMeetings = d.caseMeetings.filter((x) => x.id !== id) }).then((ok) => ok && go(BACK))
   }
 
   return (
@@ -114,7 +115,7 @@ export function CaseMeetingEdit({ id }: { id: string }) {
       </Card>
 
       <Card title="參與專業人員" actions={<button type="button" className="btn small" onClick={() => set((x) => { x.professionals.push(emptyProf()) })}>＋ 新增人員</button>}>
-        <table className="grid">
+        <div className="table-wrap"><table className="grid">
           <thead><tr><th className="no">#</th><th>姓名</th><th>專業類別</th><th /></tr></thead>
           <tbody>
             {m.professionals.map((p, i) => (
@@ -126,12 +127,12 @@ export function CaseMeetingEdit({ id }: { id: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </Card>
 
       <Card title="討論內容">
-        {TEXT_FIELDS.map(([k, label]) => (
-          <Field key={k} label={label}><Area value={m[k]} onChange={(v) => set((x) => { x[k] = v })} /></Field>
+        {TEXT_FIELDS.map(([k, label, hint]) => (
+          <Field key={k} label={label}><Area value={m[k]} placeholder={hint} onChange={(v) => set((x) => { x[k] = v })} /></Field>
         ))}
       </Card>
 

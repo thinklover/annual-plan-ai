@@ -2,7 +2,7 @@ import { capacityRows, fmtNum, sumAvg, toNum, yearLabel } from '../fmt'
 import { exportXlsx } from '../exportXlsx'
 import { emptyCapacity, useStore } from '../store'
 import type { CapacityMonth, EvalData, StaffCountKey } from '../types'
-import { Card, orgName, Page, StaffWarnings, useYear, YearSelect } from '../ui'
+import { Card, orgName, Page, StaffWarnings, Tip, useYear, YearSelect } from '../ui'
 
 export const STAFF_COLS: { key: StaffCountKey; label: string }[] = [
   { key: 'supM', label: '居督 男' },
@@ -64,19 +64,18 @@ export function CapacityPage() {
   const s = (k: 'cases' | 'claimants' | 'amount') => sumAvg(rows.map((r) => r[k]))
 
   return (
-    <Page title="服務量能" actions={<><YearSelect /><button type="button" className="btn" onClick={exportIt}>匯出 Excel</button></>}>
+    <Page title="服務量能" submit actions={<><YearSelect /><button type="button" className="btn" onClick={exportIt}>匯出 Excel</button></>}>
       <StaffWarnings link />
-      <Card title={`${yl}年度每月服務量能`}>
-        <p className="help">
-          個案數、申報人數、申報金額手動填。人數由員工名冊自動計算（月底在職人數、當月到職／離職人數），可以直接改；
-          手動改過的格子會以底色標示，清空就恢復自動計算。還沒到的月份不會自動帶人數。
-        </p>
+      <Card
+        title={`${yl}年度每月服務量能`}
+        tip="個案數、申報人數、申報金額手動填。人數由員工名冊自動計算（月底在職人數、當月到職／離職人數），可以直接改；手動改過的格子會以底色標示，清空就恢復自動計算。還沒到的月份不會自動帶人數。"
+      >
         <div className="table-wrap">
           <table className="grid capacity">
             <thead>
               <tr>
                 <th className="no">月</th>
-                <th>案管個案數<br /><span className="help">含服務中、暫停服務</span></th>
+                <th>案管個案數<Tip>含服務中、暫停服務的個案。</Tip></th>
                 <th>申報人數</th>
                 <th>申報金額</th>
                 {STAFF_COLS.map((c) => <th key={c.key}>{c.label}</th>)}

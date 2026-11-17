@@ -1,4 +1,6 @@
-// 照片儲存層：目前存在瀏覽器 IndexedDB。日後改放檔案伺服器時只需替換本檔。
+// 照片儲存層：縮圖後存到雲端資料庫（見 db.ts）。看過的照片留在記憶體，避免重複下載。
+import { insertPhoto, removePhoto, selectPhotos } from './db'
+
 export interface Photo {
   id: string
   dataUrl: string
@@ -6,38 +8,26 @@ export interface Photo {
   h: number
 }
 
-const DB = 'home-eval-photos'
-const STORE = 'photos'
 export const MAX_PHOTOS = 6
 const MAX_EDGE = 1280
 
-function open(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1)
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' })
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
+const cache = new Map<string, Photo>()
+
+export async function putPhoto(p: Photo) {
+  await insertPhoto(p)
+  cache.set(p.id, p)
 }
 
-async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await open()
-  return new Promise((resolve, reject) => {
-    const req = fn(db.transaction(STORE, mode).objectStore(STORE))
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
+export async function deletePhoto(id: string) {
+  cache.delete(id)
+  await removePhoto(id)
 }
 
-export const getPhoto = (id: string) => tx<Photo | undefined>('readonly', (s) => s.get(id))
-export const putPhoto = (p: Photo) => tx('readwrite', (s) => s.put(p))
-export const deletePhoto = (id: string) => tx('readwrite', (s) => s.delete(id))
-export const allPhotos = () => tx<Photo[]>('readonly', (s) => s.getAll())
-export const clearPhotos = () => tx('readwrite', (s) => s.clear())
-
+/** 依傳入的順序回傳；資料庫裡找不到的略過 */
 export async function getPhotos(ids: string[]): Promise<Photo[]> {
-  const list = await Promise.all(ids.map(getPhoto))
-  return list.filter((p): p is Photo => !!p)
+  const missing = ids.filter((id) => !cache.has(id))
+  for (const p of await selectPhotos(missing)) cache.set(p.id, p)
+  return ids.map((id) => cache.get(id)).filter((p): p is Photo => !!p)
 }
 
 /** 讀入圖片，縮到長邊 1280px 的 JPEG 後存起來 */

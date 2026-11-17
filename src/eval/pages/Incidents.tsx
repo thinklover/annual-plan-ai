@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { generate, parseJson } from '../../gemini'
 import { getSettings } from '../../storage'
-import { byDate, capacityRows, fmtDate, fmtNum, inYear, pct, sumAvg, todayIso, yearLabel } from '../fmt'
+import { activeInYear, byDate, capacityRows, fmtDate, fmtNum, inYear, isSupervisor, pct, sumAvg, todayIso, yearLabel } from '../fmt'
 import { exportDocx, type DocBlock } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
-import { emptyReport, optionsOf, uid, usePruneDrafts, useStore } from '../store'
+import { emptyImprovement, emptyReport, optionsOf, uid, usePruneDrafts, useStore } from '../store'
 import type { EvalData, Incident, IncidentKind, IncidentReport } from '../types'
 import {
-  Area, Card, DateIn, confirmDelete, EditActions, Field, NotFound, OptionSelect, orgName, Page, RecordTable, Text, useYear, YearSelect,
+  AiKeyHint, Area, Card, DateIn, confirmDelete, EditActions, Field, NameInput, NotFound, OptionSelect, orgName, Page, RecordTable, Text,
+  useNames, useYear, YearSelect,
 } from '../ui'
 
 type TextKey = 'reporter' | 'description' | 'response' | 'followup' | 'supervisorNote' | 'managerNote'
@@ -39,11 +40,24 @@ const META: Record<IncidentKind, {
   },
 }
 
+/** 「主責居督」「單位主管」兩欄各自對應的姓名欄位 */
+const NAME_KEY: Partial<Record<TextKey, { key: 'supervisorName' | 'managerName'; role: string }>> = {
+  supervisorNote: { key: 'supervisorName', role: '主責居督' },
+  managerNote: { key: 'managerName', role: '單位主管' },
+}
+/** 匯出用的標題：帶入姓名，例如「主責居督 王小明（改善／回饋…）」 */
+const labelOf = (x: Incident, k: TextKey, label: string) => {
+  const n = NAME_KEY[k]
+  const name = n ? x[n.key].trim() : ''
+  return n && name ? label.replace(n.role, `${n.role} ${name}`) : label
+}
+const filledRows = (rep: IncidentReport) => rep.improvements.filter((r) => r.problem.trim() || r.measure.trim())
+
 const listOf = (d: EvalData, kind: IncidentKind, year: number) =>
   d.incidents.filter((x) => x.kind === kind && inYear(x.date, year)).sort(byDate)
 
 export function IncidentList({ kind }: { kind: IncidentKind }) {
-  const { data, update } = useStore()
+  const { data, update, go } = useStore()
   const { year } = useYear()
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
@@ -53,12 +67,18 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
   const base = `#/incidents/${kind}`
 
   const add = () => {
+    // 主責居督、單位主管由員工名冊帶入：居督優先帶職稱是「督導員」的人，主管帶職稱含「負責人／主管／主任」的人
+    const active = data.employees.filter((e) => e.name && activeInYear(e, year) && !e.leaveDate)
+    const sups = active.filter(isSupervisor)
     const x: Incident = {
       id: uid(), kind, date: inYear(todayIso(), year) ? todayIso() : `${year}-01-01`, type: '', reporter: '',
-      description: '', response: '', followup: '', supervisorNote: '', managerNote: '', draft: true,
+      description: '', response: '', followup: '', supervisorNote: '', managerNote: '',
+      supervisorName: (sups.find((e) => /督導/.test(e.title)) ?? sups[0])?.name ?? '',
+      managerName: active.find((e) => /負責人|主管|主任/.test(e.title))?.name ?? '',
+      draft: true,
     }
     update((d) => { d.incidents.push(x) })
-    location.hash = `${base}/${x.id}`
+    go(`${base}/${x.id}`)
   }
 
   const exportTotal = () =>
@@ -66,7 +86,10 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
       org: orgName(data),
       title: `${yl}年度${meta.title}總表`,
       cols: [{ label: '發生日期', width: 12 }, { label: '事件類型', width: 14 }, ...meta.fields.map(([, label]) => ({ label, width: 30 }))],
-      rows: list.map((x) => [fmtDate(x.date, f), x.type, ...meta.fields.map(([k]) => x[k])]),
+      rows: list.map((x) => [fmtDate(x.date, f), x.type, ...meta.fields.map(([k]) => {
+        const name = NAME_KEY[k] ? x[NAME_KEY[k].key].trim() : ''
+        return name && x[k] ? `${name}：${x[k]}` : x[k]
+      })]),
     })
 
   return (
@@ -95,7 +118,8 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
 }
 
 export function IncidentEdit({ kind, id }: { kind: IncidentKind; id: string }) {
-  const { data, update } = useStore()
+  const { data, update, updateNow, go } = useStore()
+  const names = useNames()
   const x = data.incidents.find((y) => y.id === id)
   const back = `#/incidents/${kind}`
   if (!x) return <NotFound back={back} />
@@ -113,12 +137,11 @@ export function IncidentEdit({ kind, id }: { kind: IncidentKind; id: string }) {
     exportDocx(`${meta.record}_${fmtDate(x.date, f)}`, [
       { t: 'title', sub: orgName(data), text: meta.record },
       { t: 'kv', pairs: [['發生日期', fmtDate(x.date, f)], ['事件類型', x.type]] },
-      ...meta.fields.map(([k, label]) => ({ t: 'box' as const, label, text: x[k] })),
+      ...meta.fields.map(([k, label]) => ({ t: 'box' as const, label: labelOf(x, k, label), text: x[k] })),
     ])
   const onDelete = () => {
     if (!confirmDelete('事件紀錄')) return
-    update((d) => { d.incidents = d.incidents.filter((y) => y.id !== id) })
-    location.hash = back
+    void updateNow((d) => { d.incidents = d.incidents.filter((y) => y.id !== id) }).then((ok) => ok && go(back))
   }
 
   return (
@@ -130,6 +153,12 @@ export function IncidentEdit({ kind, id }: { kind: IncidentKind; id: string }) {
         </div>
         {meta.fields.map(([k, label]) => (
           <Field key={k} label={label}>
+            {NAME_KEY[k] && (
+              <div className="name-line">
+                <span>{NAME_KEY[k].role}姓名</span>
+                <NameInput names={names} value={x[NAME_KEY[k].key]} onChange={(v) => set((y) => { y[NAME_KEY[k]!.key] = v })} />
+              </div>
+            )}
             {k === 'reporter'
               ? <Text value={x[k]} onChange={(v) => set((y) => { y[k] = v })} />
               : <Area value={x[k]} onChange={(v) => set((y) => { y[k] = v })} />}
@@ -175,6 +204,12 @@ function reportDoc(d: EvalData, kind: IncidentKind, year: number, rep: IncidentR
           rows: st.rows.map((r, i) => [String(i + 1), r.type, String(r.count), r.pct]),
           foot: [['', '合計', String(st.total), st.total ? '100%' : '0%']],
         }
+  const rows = filledRows(rep)
+  const improveTable: DocBlock = {
+    t: 'table',
+    headers: ['項次', '改善問題', '改善措施'],
+    rows: rows.map((r, i) => [String(i + 1), r.problem, r.measure]),
+  }
   // 整年沒有事件：不印全 0 的統計表，直接寫明無事件
   if (!st.total) {
     const hasCause = !!rep.cause.trim()
@@ -182,7 +217,7 @@ function reportDoc(d: EvalData, kind: IncidentKind, year: number, rep: IncidentR
       { t: 'title', sub: orgName(d), text: title },
       { t: 'p', text: `${yearLabel(year, f)}年度未發生${META[kind].title}。` },
       ...(hasCause ? ([{ t: 'h', text: `一、${CAUSE_TITLE[kind]}` }, { t: 'p', text: rep.cause }] as DocBlock[]) : []),
-      ...(rep.improvement.trim() ? ([{ t: 'h', text: `${hasCause ? '二' : '一'}、改善措施` }, { t: 'p', text: rep.improvement }] as DocBlock[]) : []),
+      ...(rows.length ? ([{ t: 'h', text: `${hasCause ? '二' : '一'}、改善措施` }, improveTable] as DocBlock[]) : []),
     ]
   }
   return [
@@ -192,7 +227,7 @@ function reportDoc(d: EvalData, kind: IncidentKind, year: number, rep: IncidentR
     { t: 'h', text: `二、${CAUSE_TITLE[kind]}` },
     { t: 'p', text: rep.cause },
     { t: 'h', text: '三、改善措施' },
-    { t: 'p', text: rep.improvement },
+    improveTable,
   ]
 }
 
@@ -220,7 +255,7 @@ function aiPrompt(d: EvalData, kind: IncidentKind, year: number) {
     ``,
     `# 事件明細`,
     ...list.map((x, i) =>
-      [`## ${i + 1}. ${fmtDate(x.date, f)}【${x.type || '未分類'}】`, ...META[kind].fields.map(([k, label]) => (x[k] ? `${label}：${x[k]}` : ''))]
+      [`## ${i + 1}. ${fmtDate(x.date, f)}【${x.type || '未分類'}】`, ...META[kind].fields.map(([k, label]) => (x[k] ? `${labelOf(x, k, label)}：${x[k]}` : ''))]
         .filter(Boolean)
         .join('\n'),
     ),
@@ -228,13 +263,13 @@ function aiPrompt(d: EvalData, kind: IncidentKind, year: number) {
 }
 
 const SYSTEM = `你是台灣長照居家服務機構的品質管理顧問，協助機構撰寫評鑑用的年度事件分析與改善報告。
-請依使用者提供的機構基本資料、服務量能與年度事件紀錄，歸納出 3～5 個關鍵要因，並為每個要因提出具體可行的行動方案。
+請依使用者提供的機構基本資料、服務量能、年度事件類型統計與事件紀錄，進一步分析並歸納出 3～5 個關鍵原因，再針對每個原因提出改善問題與改善措施。
 要求：
-- 要因必須有事件紀錄或數據根據，引用件數、占比或具體情境；不要捏造資料中沒有的事件。
-- 行動方案要具體（誰、做什麼、頻率或期限、如何追蹤），符合居家服務單位的實際能力。
+- 關鍵原因必須有事件紀錄或統計數據根據，引用件數、占比或具體情境；不要捏造資料中沒有的事件。事件很少時，原因可以少於 3 個，不要硬湊。
+- cause：關鍵原因，格式如「1. 標題：說明」，每項一段，段落間以換行分隔。
+- improvements：與關鍵原因一一對應。problem＝要改善的問題（一句話點出問題）；measure＝改善措施（誰、做什麼、頻率或期限、如何追蹤），要具體且符合居家服務單位的實際能力，多項措施以「1. 」「2. 」分行。
 - 使用繁體中文、台灣長照用語，正式書面語氣。
-- cause 與 improvement 以相同編號一一對應，格式如「1. 標題：說明」，每項一段，段落間以換行分隔。
-只輸出 JSON：{"cause": "…", "improvement": "…"}`
+只輸出 JSON：{"cause": "…", "improvements": [{"problem": "…", "measure": "…"}]}`
 
 export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
   const { data, update } = useStore()
@@ -253,13 +288,18 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
   const runAi = async () => {
     setErr('')
     if (!list.length) return setErr('本年度沒有事件紀錄，無法分析。')
-    if ((rep.cause.trim() || rep.improvement.trim()) && !window.confirm('AI 建議會覆蓋目前的原因分析與改善措施，確定嗎？')) return
+    if ((rep.cause.trim() || filledRows(rep).length) && !window.confirm('AI 建議會覆蓋目前的原因分析與改善措施，確定嗎？')) return
     setBusy(true)
     try {
-      const out = parseJson<{ cause?: string; improvement?: string }>(await generate(getSettings(), SYSTEM, aiPrompt(data, kind, year)))
+      const out = parseJson<{ cause?: string; improvements?: { problem?: string; measure?: string }[] }>(
+        await generate(getSettings(), SYSTEM, aiPrompt(data, kind, year)),
+      )
+      const rows = (out.improvements ?? [])
+        .map((r) => ({ id: uid(), problem: String(r.problem ?? '').trim(), measure: String(r.measure ?? '').trim() }))
+        .filter((r) => r.problem || r.measure)
       set((r) => {
-        r.cause = (out.cause ?? '').trim()
-        r.improvement = (out.improvement ?? '').trim()
+        r.cause = String(out.cause ?? '').trim()
+        r.improvements = rows.length ? rows : [emptyImprovement()]
       })
     } catch (e) {
       setErr((e as Error).message)
@@ -271,16 +311,16 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
   return (
     <Page
       title={`年度分析與改善：${meta.title}`}
+      submit
       back={`#/incidents/${kind}`}
       actions={<>
         <YearSelect />
         <button type="button" className="btn" onClick={() => exportDocx(title, reportDoc(data, kind, year, rep))}>匯出 Word</button>
       </>}
     >
-      <Card title={kind === 'accident' ? '一、事件類別分類統計與佔比' : '一、事件類型件數統計'}>
-        <p className="help">由本年度事件紀錄自動統計（共 {st.total} 件）。</p>
+      <Card title={kind === 'accident' ? '一、事件類別分類統計與佔比' : '一、事件類型件數統計'} tip={`由本年度事件紀錄自動統計（共 ${st.total} 件）。`}>
         {!st.total && <div className="notice">本年度沒有事件紀錄，匯出的 Word 會寫「{yearLabel(year, f)}年度未發生{meta.title}」，不印統計表。</div>}
-        <table className="grid">
+        <div className="table-wrap"><table className="grid">
           <thead>
             <tr>
               <th>事件類別</th><th>件數</th><th>佔比</th>
@@ -300,20 +340,35 @@ export function IncidentReportPage({ kind }: { kind: IncidentKind }) {
           <tfoot>
             <tr><td>合計</td><td>{st.total}</td><td>{st.total ? '100%' : '0%'}</td>{kind === 'accident' && <td />}</tr>
           </tfoot>
-        </table>
+        </table></div>
       </Card>
 
       <Card
         title={`二、${CAUSE_TITLE[kind]}／三、改善措施`}
+        tip="按「AI 建議」，由 AI 依本年度事件紀錄與類型統計、機構基本資料與服務量能，進一步分析提列 3～5 個關鍵原因，並逐項提出改善問題與改善措施，填入後可直接修改。"
         actions={<button type="button" className="btn small" disabled={busy} onClick={runAi}>{busy ? 'AI 分析中…' : 'AI 建議'}</button>}
       >
-        <p className="help">
-          按「AI 建議」，由 AI 依本年度事件紀錄、機構基本資料與服務量能，提出 3～5 個關鍵要因與具體行動方案，填入後可直接修改。
-          {!getSettings().apiKey && <b> 尚未設定 Gemini API Key，請到首頁「AI 設定」。</b>}
-        </p>
+        <div className="help"><AiKeyHint /></div>
         {err && <div className="err">{err}</div>}
         <Field label={`二、${CAUSE_TITLE[kind]}`}><Area value={rep.cause} rows={6} onChange={(v) => set((r) => { r.cause = v })} /></Field>
-        <Field label="三、改善措施"><Area value={rep.improvement} rows={6} onChange={(v) => set((r) => { r.improvement = v })} /></Field>
+        <Field label="三、改善措施">
+          <div className="table-wrap">
+            <table className="grid">
+              <thead><tr><th className="no">#</th><th style={{ width: '34%' }}>改善問題</th><th>改善措施</th><th /></tr></thead>
+              <tbody>
+                {rep.improvements.map((r, i) => (
+                  <tr key={r.id}>
+                    <td className="no">{i + 1}</td>
+                    <td><Area value={r.problem} rows={2} onChange={(v) => set((x) => { x.improvements[i].problem = v })} /></td>
+                    <td><Area value={r.measure} rows={2} onChange={(v) => set((x) => { x.improvements[i].measure = v })} /></td>
+                    <td className="ops"><button type="button" className="icon" title="刪除這一列" onClick={() => set((x) => { x.improvements.splice(i, 1) })}>✕</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div><button type="button" className="btn tiny ghost" onClick={() => set((x) => { x.improvements.push(emptyImprovement()) })}>＋ 新增一列</button></div>
+        </Field>
       </Card>
     </Page>
   )

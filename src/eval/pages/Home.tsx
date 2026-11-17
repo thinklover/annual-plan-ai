@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { SettingsModal } from '../../components/SettingsModal'
 import { getSettings } from '../../storage'
+import { signOut } from '../db'
 import { useStore } from '../store'
 import type { Org } from '../types'
 import { Area, DateIn, Field, Text } from '../ui'
@@ -46,10 +47,16 @@ const ORG_FIELDS: [keyof Org, string, boolean][] = [
 ]
 
 function OrgModal({ onClose }: { onClose: () => void }) {
-  const { data, update } = useStore()
+  const { data, dirty, saving, update, submit, discard } = useStore()
   const set = (k: keyof Org, v: string) => update((d) => { (d.org[k] as string) = v })
+  /** 不提交就關閉：捨棄這次的修改 */
+  const cancel = () => {
+    if (dirty && !window.confirm('有修改尚未提交，關閉會捨棄這些修改。確定嗎？')) return
+    if (dirty) discard()
+    onClose()
+  }
   return (
-    <div className="modal-bg" onClick={onClose}>
+    <div className="modal-bg" onClick={cancel}>
       <div className="modal org-modal" onClick={(e) => e.stopPropagation()}>
         <h3>機構設定</h3>
         <div className="grid2">
@@ -71,8 +78,8 @@ function OrgModal({ onClose }: { onClose: () => void }) {
           </Field>
         </div>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <span className="help">自動儲存</span>
-          <button type="button" className="btn primary" onClick={onClose}>完成</button>
+          <button type="button" className="btn ghost" onClick={cancel}>取消</button>
+          <button type="button" className="btn primary" disabled={saving} onClick={() => void submit().then((ok) => ok && onClose())}>{saving ? '提交中…' : '提交'}</button>
         </div>
       </div>
     </div>
@@ -80,7 +87,7 @@ function OrgModal({ onClose }: { onClose: () => void }) {
 }
 
 export function Home() {
-  const { data } = useStore()
+  const { data, email } = useStore()
   const [showOrg, setShowOrg] = useState(false)
   const [settings, setSettings] = useState(getSettings)
   const [showAi, setShowAi] = useState(false)
@@ -100,6 +107,7 @@ export function Home() {
             <button type="button" className="btn hero-btn ghost" onClick={() => setShowAi(true)}>
               AI 設定{!settings.apiKey && <span className="hero-dot" title="尚未設定金鑰" />}
             </button>
+            <button type="button" className="btn hero-btn ghost" title={email} onClick={() => { if (window.confirm('確定登出嗎？')) void signOut() }}>登出</button>
           </div>
         </div>
       </header>
@@ -130,7 +138,7 @@ export function Home() {
           })}
         </div>
 
-        <p className="home-foot">資料只存在這台電腦的瀏覽器中，請勿清除瀏覽器資料。</p>
+        <p className="home-foot">資料儲存在雲端資料庫，登入帳號：{email}</p>
       </main>
 
       {showOrg && <OrgModal onClose={() => setShowOrg(false)} />}

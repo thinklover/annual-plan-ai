@@ -1,11 +1,11 @@
 import { byDate, fmtDate, inYear, todayIso, yearLabel } from '../fmt'
 import { exportDocx, type DocBlock } from '../exportDocx'
 import { exportXlsx } from '../exportXlsx'
-import { deletePhoto, getPhotos } from '../photos'
+import { getPhotos } from '../photos'
 import { uid, usePruneDrafts, useStore } from '../store'
 import type { EvalData, Meeting, MeetingKind, Topic } from '../types'
 import {
-  Area, Card, DateIn, confirmDelete, EditActions, Field, move, NameInput, NamesInput, NotFound, orgName, Page, PhotoField,
+  AiImport, Area, Card, DateIn, confirmDelete, EditActions, Field, move, NameInput, NamesInput, NotFound, orgName, Page, PhotoField,
   RecordTable, Text, useNames, useStaffNames, useYear, YearSelect,
 } from '../ui'
 
@@ -39,7 +39,7 @@ function previousMeeting(d: EvalData, kind: MeetingKind, date: string, selfId: s
 }
 
 export function MeetingList({ kind }: { kind: MeetingKind }) {
-  const { data, update } = useStore()
+  const { data, update, go } = useStore()
   const { year } = useYear()
   const f = data.org.yearFormat
   const yl = yearLabel(year, f)
@@ -51,7 +51,7 @@ export function MeetingList({ kind }: { kind: MeetingKind }) {
   const add = () => {
     const m = newMeeting(data, kind, year)
     update((d) => { d.meetings.push(m) })
-    location.hash = `${base}/${m.id}`
+    go(`${base}/${m.id}`)
   }
 
   const exportTotal = () => {
@@ -108,8 +108,8 @@ export async function meetingDoc(d: EvalData, m: Meeting): Promise<DocBlock[]> {
   const f = d.org.yearFormat
   const pairs: [string, string][] = [
     ['會議日期', fmtDate(m.date, f)], ['會議時間', m.time],
-    ['會議地點', m.place], ['主席', m.chair],
-    ['紀錄', m.recorder], ...(m.kind === 'group' ? [['對象', m.target] as [string, string]] : []),
+    ['會議地點', m.place], ['紀錄', m.recorder],
+    ['主席', m.chair], ...(m.kind === 'group' ? [['對象', m.target] as [string, string]] : []),
     ['參與人員', m.attendees.join('、')],
   ]
   const content = filled(m.topics)
@@ -126,7 +126,7 @@ export async function meetingDoc(d: EvalData, m: Meeting): Promise<DocBlock[]> {
 }
 
 export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
-  const { data, update } = useStore()
+  const { data, update, updateNow, go } = useStore()
   const names = useNames()
   const staffNames = useStaffNames()
   const m = data.meetings.find((x) => x.id === id)
@@ -148,12 +148,26 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
   }
   const setTopic = (i: number, k: keyof Omit<Topic, 'id'>, v: string) => set((x) => { x.topics[i][k] = v })
 
+  const importPrompt = `這是「${meta.title}」的錄音或書面紀錄。請整理成會議紀錄：
+- topics：每個議題一筆。title＝議題標題（簡短）；discussion＝討論內容重點；resolution＝決議。
+- nextFollow：會中提到下次要追蹤的事項，沒有就回傳空字串。
+輸出格式：{"topics": [{"title": "…", "discussion": "…", "resolution": "…"}], "nextFollow": "…"}`
+  const onImport = (out: { topics?: Partial<Topic>[]; nextFollow?: string }) => {
+    const str = (v: unknown) => String(v ?? '').trim()
+    const added = filled((out.topics ?? []).map((t) => ({ id: uid(), title: str(t.title), discussion: str(t.discussion), resolution: str(t.resolution) })))
+    const follow = str(out.nextFollow)
+    if (!added.length && !follow) return window.alert('AI 沒有從檔案整理出會議內容，請確認檔案是否正確。')
+    // 已經填過的議題保留，AI 整理的接在後面
+    set((x) => {
+      x.topics = [...filled(x.topics), ...added]
+      if (follow) x.nextFollow = x.nextFollow.trim() ? `${x.nextFollow.trim()}\n${follow}` : follow
+    })
+  }
+
   const onWord = async () => exportDocx(`${meta.record}_${fmtDate(m.date, data.org.yearFormat)}`, await meetingDoc(data, m))
   const onDelete = () => {
     if (!confirmDelete('會議紀錄')) return
-    m.photos.forEach((p) => deletePhoto(p))
-    update((d) => { d.meetings = d.meetings.filter((x) => x.id !== id) })
-    location.hash = back
+    void updateNow((d) => { d.meetings = d.meetings.filter((x) => x.id !== id) }).then((ok) => ok && go(back))
   }
 
   return (
@@ -179,6 +193,10 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
         )}
       >
         <Area value={m.prevFollow} onChange={(v) => set((x) => { x.prevFollow = v })} placeholder={prev ? '上一場沒有填「下次追蹤事項」' : '沒有更早的會議可以帶入'} />
+      </Card>
+
+      <Card title="匯入錄音或書面紀錄">
+        <AiImport prompt={importPrompt} onResult={onImport} tip="AI 會把內容整理成下方的「議題、討論與決議」與「下次追蹤事項」；已經填的議題會保留，新的接在後面。" />
       </Card>
 
       <Card title="議題、討論與決議" actions={<button type="button" className="btn small" onClick={() => set((x) => { x.topics.push(emptyTopic()) })}>＋ 新增議題</button>}>
