@@ -63,6 +63,9 @@ export function CaseMeetingList() {
         items={list}
         href={(m) => `${BACK}/${m.id}`}
         empty={`${yl}年度還沒有個案討論會，按「新增會議」開始。`}
+        what="個案討論會紀錄"
+        label={(m) => `會議日期：${fmtDate(m.date, f)} ${m.time}`}
+        remove={(d, m) => { d.caseMeetings = d.caseMeetings.filter((x) => x.id !== m.id) }}
         cols={[
           { label: '會議日期', render: (m) => fmtDate(m.date, f), w: '7em' },
           { label: '時間', render: (m) => m.time, w: '4em' },

@@ -92,6 +92,9 @@ export function MeetingList({ kind }: { kind: MeetingKind }) {
         items={list}
         href={(m) => `${base}/${m.id}`}
         empty={`${yl}年度還沒有${meta.title}紀錄，按「新增會議」開始。`}
+        what={meta.record}
+        label={(m) => `會議日期：${fmtDate(m.date, f)} ${m.time}`}
+        remove={(d, m) => { d.meetings = d.meetings.filter((x) => x.id !== m.id) }}
         cols={[
           { label: '會議日期', render: (m) => fmtDate(m.date, f), w: '7em' },
           { label: '時間', render: (m) => m.time, w: '4em' },

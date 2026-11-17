@@ -94,7 +94,7 @@ function EmployeeModal({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="row between">
           {e.draft ? <span /> : (
             <button type="button" className="btn danger ghost" onClick={() => {
-              if (!confirmDelete(`員工「${e.name || '未命名'}」`)) return
+              if (!confirmDelete('員工資料', `姓名：${e.name || '（未填姓名）'}`)) return
               void remove().then((ok) => ok && onClose())
             }}>刪除員工</button>
           )}
@@ -109,7 +109,7 @@ function EmployeeModal({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 export function StaffPage() {
-  const { data, update, submit } = useStore()
+  const { data, dirty, update, updateNow, submit } = useStore()
   const { year } = useYear()
   const [editing, setEditing] = useState<string | null>(null)
   const f = data.org.yearFormat
@@ -163,6 +163,13 @@ export function StaffPage() {
     const e = newEmployee()
     update((d) => { d.employees.push(e) })
     setEditing(e.id)
+  }
+
+  /** 列表上的刪除：立即存檔，所以頁面上有未提交的修改時先請使用者處理，避免一併送出 */
+  const removeEmp = (e: Employee) => {
+    if (dirty) return window.alert('這一頁有修改尚未提交，請先按「提交」或捨棄修改，再刪除員工。')
+    if (!confirmDelete(`員工資料`, `姓名：${e.name || '（未填姓名）'}\n\n（離職員工建議填寫離職日即可，不需刪除）`)) return
+    void updateNow((d) => { d.employees = d.employees.filter((x) => x.id !== e.id) })
   }
 
   /** 在職員工還沒填的格子以底色提醒 */
@@ -283,7 +290,10 @@ export function StaffPage() {
                   <td>{fmtDate(e.leaveDate, f)}</td>
                   <td className={miss(e, e.cprExpiry)}>{fmtDate(e.cprExpiry, f)}</td>
                   <td><span className="chips">{flags(e).map((x) => <span key={x.text} className={`chip ${x.cls}`}>{x.text}</span>)}</span></td>
-                  <td className="ops"><button type="button" className="link">編輯</button></td>
+                  <td className="ops">
+                    <button type="button" className="link">編輯</button>
+                    <button type="button" className="link danger" onClick={(ev) => { ev.stopPropagation(); removeEmp(e) }}>刪除</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

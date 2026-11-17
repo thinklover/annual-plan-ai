@@ -401,13 +401,23 @@ export function PhotoField({ ids, onChange, alt = '會議照片' }: { ids: strin
 }
 
 // ---------- 紀錄列表 ----------
-export function RecordTable<T extends { id: string }>({ items, cols, href, empty }: {
+export function RecordTable<T extends { id: string }>({ items, cols, href, empty, what, label, remove }: {
   items: T[]
   cols: { label: string; render: (x: T) => ReactNode; w?: string }[]
   href: (x: T) => string
   empty: string
+  /** 刪除確認用：紀錄種類（如「會議紀錄」）與這筆的識別文字（如日期） */
+  what: string
+  label: (x: T) => string
+  /** 從資料中移除這筆 */
+  remove: (d: EvalData, x: T) => void
 }) {
+  const { updateNow } = useStore()
   if (!items.length) return <div className="empty big">{empty}</div>
+  const del = (x: T) => {
+    if (!confirmDelete(what, label(x))) return
+    void updateNow((d) => remove(d, x))
+  }
   return (
     <div className="table-wrap">
       <table className="grid records">
@@ -419,7 +429,10 @@ export function RecordTable<T extends { id: string }>({ items, cols, href, empty
             <tr key={x.id} onClick={() => (location.hash = href(x))}>
               <td className="no">{i + 1}</td>
               {cols.map((c) => <td key={c.label}>{c.render(x)}</td>)}
-              <td className="ops"><a className="link" href={href(x)}>編輯</a></td>
+              <td className="ops">
+                <a className="link" href={href(x)}>編輯</a>
+                <button type="button" className="link danger" onClick={(ev) => { ev.stopPropagation(); del(x) }}>刪除</button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -456,8 +469,9 @@ export function Building({ title }: { title: string }) {
   )
 }
 
-export function confirmDelete(what: string) {
-  return window.confirm(`確定刪除這筆${what}？刪除後無法復原。`)
+export function confirmDelete(what: string, detail?: string) {
+  const d = detail?.trim()
+  return window.confirm(`確定刪除這筆${what}？${d ? `\n\n${d}` : ''}\n\n刪除後無法復原。`)
 }
 
 export const orgName = (d: EvalData) => d.org.name.trim() || '（請先到首頁「機構設定」填寫機構全銜）'

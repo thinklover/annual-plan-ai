@@ -70,6 +70,8 @@ a.tile:hover { transform: translateY(-2px); border-color: #b9d8d1; box-shadow: 0
 table.records tbody tr { cursor: pointer; }
 table.records tbody tr:hover { background: #f6f8f7; }
 table.records td { padding: 7px 8px; }
+.link.danger { color: var(--danger); }
+.link.danger:hover { text-decoration: underline; }
 .clip { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
 table.grid tr.left td { background: #f7f8f8; color: var(--muted); }
 table.grid input.auto::placeholder { color: #9aa8ad; }

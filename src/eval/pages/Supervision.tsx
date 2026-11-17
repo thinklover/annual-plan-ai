@@ -77,6 +77,9 @@ export function SupervisionList() {
         items={list}
         href={(s) => `${BACK}/${s.id}`}
         empty={`${yl}年度還沒有個督紀錄，按「新增個督紀錄」開始。`}
+        what="個督紀錄"
+        label={(s) => `個督日期：${fmtDate(s.date, f)}${s.staff ? `　人員：${s.staff}` : ''}`}
+        remove={(d, s) => { d.supervisions = d.supervisions.filter((x) => x.id !== s.id) }}
         cols={[
           { label: '個督日期', render: (s) => fmtDate(s.date, f), w: '7em' },
           { label: '人員姓名', render: (s) => s.staff, w: '7em' },

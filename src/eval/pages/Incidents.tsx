@@ -106,6 +106,9 @@ export function IncidentList({ kind }: { kind: IncidentKind }) {
         items={list}
         href={(x) => `${base}/${x.id}`}
         empty={`${yl}年度還沒有${meta.title}，按「新增事件」開始。`}
+        what={`${meta.title}紀錄`}
+        label={(x) => `發生日期：${fmtDate(x.date, f)}${x.type ? `　事件類型：${x.type}` : ''}`}
+        remove={(d, x) => { d.incidents = d.incidents.filter((y) => y.id !== x.id) }}
         cols={[
           { label: '發生日期', render: (x) => fmtDate(x.date, f), w: '7em' },
           { label: '事件類型', render: (x) => x.type, w: '8em' },
