@@ -119,16 +119,18 @@ export function SupervisionEdit({ id }: { id: string }) {
 - feedback：人員（照顧服務員）的回饋與想法。
 - plan：改善方案及期限（誰、做什麼、何時完成）。
 輸出格式：{"problem": "…", "feedback": "…", "plan": "…"}`
+  const filled = !!(s.problem.trim() || s.feedback.trim() || s.plan.trim())
   const onImport = (out: { problem?: string; feedback?: string; plan?: string }) => {
     const next = { problem: String(out.problem ?? '').trim(), feedback: String(out.feedback ?? '').trim(), plan: String(out.plan ?? '').trim() }
-    if (!next.problem && !next.feedback && !next.plan) return window.alert('AI 沒有從檔案整理出個督內容，請確認檔案是否正確。')
-    if ((s.problem.trim() || s.feedback.trim() || s.plan.trim()) && !window.confirm('AI 整理的內容會覆蓋目前的問題、人員回饋、改善方案，確定嗎？')) return
+    if (!next.problem && !next.feedback && !next.plan) return false
+    if (filled && !window.confirm('AI 整理的內容會覆蓋目前的問題、人員回饋、改善方案及期限，確定嗎？')) return true
     // AI 沒整理出來的欄位保留原內容
     set((x) => {
       if (next.problem) x.problem = next.problem
       if (next.feedback) x.feedback = next.feedback
       if (next.plan) x.plan = next.plan
     })
+    return true
   }
 
   const onWord = async () =>
@@ -162,8 +164,10 @@ export function SupervisionEdit({ id }: { id: string }) {
           </Field>
         </div>
       </Card>
+
+      <AiImport prompt={importPrompt} onResult={onImport} fields={['問題', '人員回饋', '改善方案及期限']} replace filled={filled} />
+
       <Card title="個督內容">
-        <AiImport prompt={importPrompt} onResult={onImport} />
         <Field label="問題"><Area value={s.problem} onChange={(v) => set((x) => { x.problem = v })} /></Field>
         <Field label="人員回饋"><Area value={s.feedback} onChange={(v) => set((x) => { x.feedback = v })} /></Field>
         <Field label="改善方案及期限"><Area value={s.plan} onChange={(v) => set((x) => { x.plan = v })} /></Field>

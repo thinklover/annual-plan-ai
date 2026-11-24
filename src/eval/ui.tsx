@@ -192,27 +192,44 @@ const IMPORT_SYSTEM = `你是台灣長照居家服務機構的行政助理，協
 - 使用繁體中文、台灣長照用語，改寫成正式書面語，刪除口語贅字；重點條列，每項一行。
 - 只輸出 JSON。`
 
-/** 匯入錄音檔、PDF 或照片，由 AI 整理後交給 onResult 填入欄位 */
-export function AiImport<T>({ prompt, onResult, tip, label = '匯入錄音／PDF，由 AI 整理' }: { prompt: string; onResult: (out: T) => void; tip?: string; label?: string }) {
+/**
+ * 匯入錄音檔、PDF 或照片，由 AI 整理後交給 onResult 填入欄位。各頁文案統一寫在這裡。
+ * fields＝會填入的欄位；replace＝已填的內容會被取代（預設保留，新的接在後面），filled＝目前已有內容，直接顯示覆蓋提醒；onResult 回傳 false 表示檔案沒有可填的內容
+ */
+export function AiImport<T>({ prompt, onResult, fields, replace, filled }: {
+  prompt: string; onResult: (out: T) => boolean; fields: string[]; replace?: boolean; filled?: boolean
+}) {
   const ai = useAi()
   const fileRef = useRef<HTMLInputElement>(null)
+  // AI 整理期間使用者可能又改了欄位，完成時要用最新的內容判斷是否覆蓋
+  const latest = useRef(onResult)
+  useEffect(() => { latest.current = onResult })
   const pick = (file?: File) => {
     if (fileRef.current) fileRef.current.value = ''
     if (!file) return
-    ai.run(async () => onResult(parseJson<T>(await generateFromFile(getSettings(), IMPORT_SYSTEM, prompt, file))))
+    ai.run(async () => {
+      const out = parseJson<T>(await generateFromFile(getSettings(), IMPORT_SYSTEM, prompt, file))
+      if (!latest.current(out)) window.alert('AI 沒有從檔案整理出可填入的內容，請確認檔案是否正確。')
+    })
   }
   return (
-    <div className="ai-import">
-      <div className="row">
-        <button type="button" className="btn small ghost" disabled={ai.busy} onClick={() => fileRef.current?.click()}>
-          {ai.busy ? 'AI 整理中，請稍候…' : label}
-        </button>
-        <Tip>可選錄音檔（mp3、m4a、wav…）、PDF 或拍照的紀錄表。檔案會送到 Gemini 辨識，整理結果填入下方欄位，可再修改。{tip}</Tip>
-        <span className="help"><AiKeyHint /></span>
-        <input ref={fileRef} type="file" accept="audio/*,video/mp4,application/pdf,image/*,.m4a,.mp3,.wav,.aac,.amr" hidden onChange={(e) => pick(e.target.files?.[0])} />
+    <Card title="匯入錄音或書面紀錄">
+      <div className="ai-import">
+        <div className="row">
+          <button type="button" className="btn small ghost" disabled={ai.busy} onClick={() => fileRef.current?.click()}>
+            {ai.busy ? 'AI 整理中，請稍候…' : '匯入錄音／PDF，由 AI 整理'}
+          </button>
+          <Tip>
+            可選錄音檔（mp3、m4a、wav…）、PDF 或拍照的紀錄。檔案會送到 Gemini 辨識，整理結果填入下方的{fields.map((x) => `「${x}」`).join('')}，可再修改。
+            {replace ? '欄位已有內容時，會先詢問再覆蓋。' : '已填的內容會保留，新的接在後面。'}
+          </Tip>
+          <span className="help"><AiKeyHint /></span>
+          <input ref={fileRef} type="file" accept="audio/*,video/mp4,application/pdf,image/*,.m4a,.mp3,.wav,.aac,.amr" hidden onChange={(e) => pick(e.target.files?.[0])} />
+        </div>
+        {replace && filled && <div className="notice">提醒：下方欄位已有內容，匯入後會被 AI 整理的結果覆蓋。需要保留的內容請先另外存下來。</div>}
+        {ai.err && <div className="err">{ai.err}</div>}
       </div>
-      {ai.err && <div className="err">{ai.err}</div>}
-    </div>
+    </Card>
   )
 }
 

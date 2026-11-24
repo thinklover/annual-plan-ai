@@ -159,12 +159,13 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
     const str = (v: unknown) => String(v ?? '').trim()
     const added = filled((out.topics ?? []).map((t) => ({ id: uid(), title: str(t.title), discussion: str(t.discussion), resolution: str(t.resolution) })))
     const follow = str(out.nextFollow)
-    if (!added.length && !follow) return window.alert('AI 沒有從檔案整理出會議內容，請確認檔案是否正確。')
+    if (!added.length && !follow) return false
     // 已經填過的議題保留，AI 整理的接在後面
     set((x) => {
       x.topics = [...filled(x.topics), ...added]
       if (follow) x.nextFollow = x.nextFollow.trim() ? `${x.nextFollow.trim()}\n${follow}` : follow
     })
+    return true
   }
 
   const onWord = async () => exportDocx(`${meta.record}_${fmtDate(m.date, data.org.yearFormat)}`, await meetingDoc(data, m))
@@ -198,9 +199,7 @@ export function MeetingEdit({ kind, id }: { kind: MeetingKind; id: string }) {
         <Area value={m.prevFollow} onChange={(v) => set((x) => { x.prevFollow = v })} placeholder={prev ? '上一場沒有填「下次追蹤事項」' : '沒有更早的會議可以帶入'} />
       </Card>
 
-      <Card title="匯入錄音或書面紀錄">
-        <AiImport prompt={importPrompt} onResult={onImport} tip="AI 會把內容整理成下方的「議題、討論與決議」與「下次追蹤事項」；已經填的議題會保留，新的接在後面。" />
-      </Card>
+      <AiImport prompt={importPrompt} onResult={onImport} fields={['議題、討論與決議', '下次追蹤事項']} />
 
       <Card title="議題、討論與決議" actions={<button type="button" className="btn small" onClick={() => set((x) => { x.topics.push(emptyTopic()) })}>＋ 新增議題</button>}>
         {m.topics.map((t, i) => (

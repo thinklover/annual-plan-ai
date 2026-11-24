@@ -5,7 +5,7 @@ import { getPhotos } from '../photos'
 import { uid, usePruneDrafts, useStore } from '../store'
 import type { CaseMeeting, Professional } from '../types'
 import {
-  Area, Card, DateIn, confirmDelete, EditActions, Field, NameInput, NotFound, OptionSelect, orgName, Page, PhotoField,
+  AiImport, Area, Card, DateIn, confirmDelete, EditActions, Field, NameInput, NotFound, OptionSelect, orgName, Page, PhotoField,
   RecordTable, Text, useNames, useYear, YearSelect,
 } from '../ui'
 
@@ -92,6 +92,25 @@ export function CaseMeetingEdit({ id }: { id: string }) {
     })
   const setProf = (i: number, k: 'name' | 'category', v: string) => set((x) => { x.professionals[i][k] = v })
 
+  const importPrompt = `這是居家服務機構「個案討論會」（跨專業討論會議）的錄音或書面紀錄。請整理成會議紀錄的四個段落：
+- summary：個案現況摘要，包含個案的基本狀況、目前使用的服務，以及已經採取的因應措施。
+- issues：這次會議請各專業一起討論的問題，一項一行。
+- suggestions：與會專業人員建議的要點，一項一行，註明是哪個專業的建議（例如「護理：…」）；聽不出或看不出是哪個專業時不要猜。
+- followup：問題的後續追蹤（執行情形、追蹤結果）及是否結案，檔案沒有提到就回傳空字串。
+每個欄位都是一個字串，各項之間用換行分開。
+輸出格式：{"summary": "…", "issues": "…", "suggestions": "…", "followup": "…"}`
+  const onImport = (out: Partial<Record<(typeof TEXT_FIELDS)[number][0], unknown>>) => {
+    // 模型偶爾會把條列回傳成陣列
+    const str = (v: unknown) => (Array.isArray(v) ? v.join('\n') : String(v ?? '')).trim()
+    const added = TEXT_FIELDS.map(([k]) => [k, str(out[k])] as const).filter(([, v]) => v)
+    if (!added.length) return false
+    // 已經填過的內容保留，AI 整理的接在後面
+    set((x) => {
+      for (const [k, v] of added) x[k] = x[k].trim() ? `${x[k].trim()}\n${v}` : v
+    })
+    return true
+  }
+
   const onWord = async () =>
     exportDocx(`個案討論會紀錄_${fmtDate(m.date, f)}`, [
       { t: 'title', sub: orgName(data), text: '個案討論會紀錄' },
@@ -132,6 +151,8 @@ export function CaseMeetingEdit({ id }: { id: string }) {
           </tbody>
         </table></div>
       </Card>
+
+      <AiImport prompt={importPrompt} onResult={onImport} fields={['討論內容']} />
 
       <Card title="討論內容">
         {TEXT_FIELDS.map(([k, label, hint]) => (

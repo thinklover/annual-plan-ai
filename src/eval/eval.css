@@ -117,6 +117,7 @@ table.grid input:not([type='checkbox']):not([type='radio']):not([type='file']), 
 
 /* ---------- 2026-11-17 反饋修訂 ---------- */
 .ai-import { display: grid; gap: 6px; background: #f7f9f8; border: 1px dashed #c9d8d4; border-radius: 10px; padding: 8px 12px; }
+.ai-import .notice { margin: 0; }
 .ai-import .row { align-items: center; flex-wrap: wrap; }
 .ai-import .help { flex: 1; min-width: 16em; }
 /* 還沒填的格子以底色提醒 */
